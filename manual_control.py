@@ -61,6 +61,10 @@ import logging
 import math
 import weakref
 
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
+from udp_server import send_custom_data
+
 try:
     import pygame
     from pygame.locals import K_ESCAPE
@@ -110,6 +114,17 @@ def get_actor_display_name(actor, truncate=250):
 # ==============================================================================
 # -- World ---------------------------------------------------------------------
 # ==============================================================================
+
+data = {
+    "custom data":
+            {
+                "imu": {
+                    "accelerometer": [0.0, 0.0, 0.0],
+                    "gyroscope": [0.0, 0.0, 0.0]
+                },
+            }
+}
+
 
 class World(object):
 
@@ -694,6 +709,10 @@ class IMUSensor(object):
             max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.y))),
             max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.z))))
         self.compass = math.degrees(sensor_data.compass)
+        data["custom data"]["imu"]["accelerometer"] = [self.accelerometer[0], self.accelerometer[1], self.accelerometer[2]]
+        data["custom data"]["imu"]["gyroscope"] = [self.gyroscope[0], self.gyroscope[1], self.gyroscope[2]]
+
+        send_custom_data(data)
 
 
 # ==============================================================================
