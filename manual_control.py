@@ -60,6 +60,7 @@ import datetime
 import logging
 import math
 import weakref
+import pandas as pd
 
 import os, sys
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
@@ -110,21 +111,46 @@ def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
     return (name[:truncate - 1] + u'\u2026') if len(name) > truncate else name
 
+def save_data(df: pd.DataFrame, filename: str):
+    counter = 0
+    env = os.environ["MNETWORK_PATH"]
+    prefix = f"{env}/data"
+    if not os.path.exists(prefix):
+        os.makedirs(prefix)
+    filename = f"{prefix}/{filename}"
+    while os.path.exists(f"{filename}_{counter}.csv"):
+        counter += 1    
+    pd.DataFrame.to_csv(df, f"{filename}_{counter}.csv")
+    print(f"Data saved to {filename}_{counter}.csv")
 
 # ==============================================================================
-# -- World ---------------------------------------------------------------------
+# -- Global data ----------------------------------------------------------
 # ==============================================================================
 
 data = {
-    "custom data":
-            {
+    "custom data":{
+                "time": 0.0,
                 "imu": {
                     "accelerometer": [0.0, 0.0, 0.0],
                     "gyroscope": [0.0, 0.0, 0.0]
                 },
-            }
-}
+                "control": {
+                    "throttle": 0.0,
+                    "steer": 0.0,
+                    "brake": 0.0,
+                    "reverse": False,
+                    "hand_brake": False,
+            },
+            "gnss": {
+                "lat": 0.0,
+                "lon": 0.0
+            }}}
 
+df = pd.DataFrame(columns=["time", "accelerometer_x", "accelerometer_y", "accelerometer_z", "gyroscope_x", "gyroscope_y", "gyroscope_z", "gnss_lon", "gnss_lat", "throttle", "steer", "brake", "reverse", "hand_brake"])
+
+# ==============================================================================
+# -- World ---------------------------------------------------------------------
+# ==============================================================================
 
 class World(object):
 
@@ -467,6 +493,21 @@ class HUD(object):
                 vehicle_type = get_actor_display_name(vehicle, truncate=22)
                 self._info_text.append('% 4dm %s' % (d, vehicle_type))
 
+        data["custom data"]["imu"]["accelerometer"] = [world.imu_sensor.accelerometer[0], world.imu_sensor.accelerometer[1], world.imu_sensor.accelerometer[2]]
+        data["custom data"]["imu"]["gyroscope"] = [world.imu_sensor.gyroscope[0], world.imu_sensor.gyroscope[1], world.imu_sensor.gyroscope[2]]
+        data["custom data"]["time"] = self.simulation_time
+        data["custom data"]["control"]["throttle"] = c.throttle
+        data["custom data"]["control"]["steer"] = c.steer
+        data["custom data"]["control"]["brake"] = c.brake
+        data["custom data"]["control"]["reverse"] = c.reverse
+        data["custom data"]["control"]["hand_brake"] = c.hand_brake
+        data["custom data"]["gnss"]["lat"] = world.gnss_sensor.lat
+        data["custom data"]["gnss"]["lon"] = world.gnss_sensor.lon
+
+        df.loc[len(df)] = [self.simulation_time, world.imu_sensor.accelerometer[0], world.imu_sensor.accelerometer[1], world.imu_sensor.accelerometer[2], world.imu_sensor.gyroscope[0], world.imu_sensor.gyroscope[1], world.imu_sensor.gyroscope[2], world.gnss_sensor.lon, world.gnss_sensor.lat, c.throttle, c.steer, c.brake, c.reverse, c.hand_brake]
+
+        send_custom_data(data)
+
     def toggle_info(self):
         self._show_info = not self._show_info
 
@@ -709,11 +750,6 @@ class IMUSensor(object):
             max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.y))),
             max(limits[0], min(limits[1], math.degrees(sensor_data.gyroscope.z))))
         self.compass = math.degrees(sensor_data.compass)
-        data["custom data"]["imu"]["accelerometer"] = [self.accelerometer[0], self.accelerometer[1], self.accelerometer[2]]
-        data["custom data"]["imu"]["gyroscope"] = [self.gyroscope[0], self.gyroscope[1], self.gyroscope[2]]
-
-        send_custom_data(data)
-
 
 # ==============================================================================
 # -- RadarSensor ---------------------------------------------------------------
@@ -1008,6 +1044,7 @@ def main():
         game_loop(args)
 
     except KeyboardInterrupt:
+        save_data(df, "manual_control")
         print('\nCancelled by user. Bye!')
     except Exception as error:
         logging.exception(error)

@@ -183,6 +183,7 @@ class ScenarioManager(object):
                 self._running = False
 
         if self._sync_mode and self._running and self._watchdog.get_status():
+            time.sleep(0.05)
             CarlaDataProvider.get_world().tick()
 
     def get_running_status(self):
