@@ -146,7 +146,7 @@ data = {
                 "lon": 0.0
             }}}
 
-df = pd.DataFrame(columns=["time", "accelerometer_x", "accelerometer_y", "accelerometer_z", "gyroscope_x", "gyroscope_y", "gyroscope_z", "gnss_lon", "gnss_lat", "throttle", "steer", "brake", "reverse", "hand_brake"])
+df = pd.DataFrame(columns=["time", "accelerometer_x", "accelerometer_y", "accelerometer_z", "gyroscope_x", "gyroscope_y", "gyroscope_z", "gnss_lon", "gnss_lat", "throttle", "steer", "brake", "reverse", "hand_brake", "velocity"])
 
 # ==============================================================================
 # -- World ---------------------------------------------------------------------
@@ -503,8 +503,9 @@ class HUD(object):
         data["custom data"]["control"]["hand_brake"] = c.hand_brake
         data["custom data"]["gnss"]["lat"] = world.gnss_sensor.lat
         data["custom data"]["gnss"]["lon"] = world.gnss_sensor.lon
+        data["custom data"]["velocity"] = math.sqrt(v.x**2 + v.y**2 + v.z**2)
 
-        df.loc[len(df)] = [self.simulation_time, world.imu_sensor.accelerometer[0], world.imu_sensor.accelerometer[1], world.imu_sensor.accelerometer[2], world.imu_sensor.gyroscope[0], world.imu_sensor.gyroscope[1], world.imu_sensor.gyroscope[2], world.gnss_sensor.lon, world.gnss_sensor.lat, c.throttle, c.steer, c.brake, c.reverse, c.hand_brake]
+        df.loc[len(df)] = [self.simulation_time, world.imu_sensor.accelerometer[0], world.imu_sensor.accelerometer[1], world.imu_sensor.accelerometer[2], world.imu_sensor.gyroscope[0], world.imu_sensor.gyroscope[1], world.imu_sensor.gyroscope[2], world.gnss_sensor.lon, world.gnss_sensor.lat, c.throttle, c.steer, c.brake, c.reverse, c.hand_brake, math.sqrt(v.x**2 + v.y**2 + v.z**2)]
 
         send_custom_data(data)
 
@@ -1044,7 +1045,7 @@ def main():
         game_loop(args)
 
     except KeyboardInterrupt:
-        save_data(df, "manual_control")
+        save_data(df, "manual_control_addvelocity")
         print('\nCancelled by user. Bye!')
     except Exception as error:
         logging.exception(error)
