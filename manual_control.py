@@ -148,6 +148,8 @@ data = {
 
 df = pd.DataFrame(columns=["time", "accelerometer_x", "accelerometer_y", "accelerometer_z", "gyroscope_x", "gyroscope_y", "gyroscope_z", "gnss_lon", "gnss_lat", "throttle", "steer", "brake", "reverse", "hand_brake", "velocity"])
 
+MAX_THROTTLE = 0.400
+
 # ==============================================================================
 # -- World ---------------------------------------------------------------------
 # ==============================================================================
@@ -375,7 +377,8 @@ class KeyboardControl(object):
 
     def _parse_vehicle_keys(self, keys, milliseconds):
         if keys[K_UP] or keys[K_w]:
-            self._control.throttle = min(self._control.throttle + 0.1, 1.00)
+            # we can set to this value
+            self._control.throttle = min(self._control.throttle + 0.1, MAX_THROTTLE)
         else:
             self._control.throttle = 0.0
 
