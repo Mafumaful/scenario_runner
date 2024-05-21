@@ -10,7 +10,8 @@
       "request": "launch",
       "program": "${workspaceFolder}/scenario_runner.py",
       "console": "integratedTerminal",
-      "args":  ["--scenario", "FreeRide_1", "--reloadWorld","--sync"]
+      "args":  ["--scenario", "FreeRide_1", "--reloadWorld","--sync","--timeout","60"]
+      // "args":  ["--scenario", "FreeRide_5","--sync","--timeout","60"]
     },
 
     {

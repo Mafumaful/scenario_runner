@@ -148,7 +148,7 @@ data = {
 
 df = pd.DataFrame(columns=["time", "accelerometer_x", "accelerometer_y", "accelerometer_z", "gyroscope_x", "gyroscope_y", "gyroscope_z", "gnss_lon", "gnss_lat", "throttle", "steer", "brake", "reverse", "hand_brake", "velocity"])
 
-MAX_THROTTLE = 0.400
+MAX_THROTTLE = 1.00
 
 # ==============================================================================
 # -- World ---------------------------------------------------------------------
