@@ -9,39 +9,6 @@
 # Allows controlling a vehicle with a keyboard. For a simpler and more
 # documented example, please take a look at tutorial.py.
 
-"""
-Welcome to CARLA manual control.
-
-Use ARROWS or WASD keys for control.
-
-    W            : throttle
-    S            : brake
-    A/D          : steer left/right
-    Q            : toggle reverse
-    Space        : hand-brake
-    P            : toggle autopilot
-    M            : toggle manual transmission
-    ,/.          : gear up/down
-
-    L            : toggle next light type
-    SHIFT + L    : toggle high beam
-    Z/X          : toggle right/left blinker
-    I            : toggle interior light
-
-    TAB          : change camera position
-
-    R            : toggle recording images to disk
-
-    CTRL + R     : toggle recording of simulation (replacing any previous)
-    CTRL + P     : start replaying last recorded simulation
-    CTRL + +     : increments the start time of the replay by 1 second (+SHIFT = 10 seconds)
-    CTRL + -     : decrements the start time of the replay by 1 second (+SHIFT = 10 seconds)
-
-    F1           : toggle HUD
-    H/?          : toggle help
-    ESC          : quit
-"""
-
 from __future__ import print_function
 
 # ==============================================================================
@@ -61,40 +28,25 @@ import datetime
 import logging
 import math
 import weakref
-import pandas as pd
 import numpy as np
 import pygame
 
 try:
     import pygame
-    from pygame.locals import K_ESCAPE
-    from pygame.locals import K_F1
-    from pygame.locals import KMOD_CTRL
-    from pygame.locals import KMOD_SHIFT
-    from pygame.locals import K_TAB
-    from pygame.locals import K_SPACE
-    from pygame.locals import K_UP
-    from pygame.locals import K_DOWN
-    from pygame.locals import K_LEFT
-    from pygame.locals import K_RIGHT
-    from pygame.locals import K_w
-    from pygame.locals import K_a
-    from pygame.locals import K_s
-    from pygame.locals import K_d
-    from pygame.locals import K_q
-    from pygame.locals import K_m
-    from pygame.locals import K_COMMA
-    from pygame.locals import K_PERIOD
-    from pygame.locals import K_p
-    from pygame.locals import K_i
-    from pygame.locals import K_l
-    from pygame.locals import K_z
-    from pygame.locals import K_x
-    from pygame.locals import K_r
-    from pygame.locals import K_MINUS
-    from pygame.locals import K_EQUALS
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
+
+# for parse the global route
+from agents.navigation.global_route_planner import GlobalRoutePlanner
+import xml.etree.ElementTree as ET
+
+# add the $SCEANRIO_RUNNER_ROOT to the python path
+SCENARI_RUNNER_ROOT = os.environ.get('SCENARIO_RUNNER_ROOT', None)
+if SCENARI_RUNNER_ROOT is not None:
+    sys.path.append(SCENARI_RUNNER_ROOT)
+    
+# frenet, spline dependencies
+from AutoControl.utils.frenet import Frenet
 
 def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
@@ -128,36 +80,6 @@ class FadingText(object):
     def render(self, display):
         display.blit(self.surface, self.pos)
 
-
-# ==============================================================================
-# -- HelpText ------------------------------------------------------------------
-# ==============================================================================
-
-
-class HelpText(object):
-    """Helper class to handle text output using pygame"""
-    def __init__(self, font, width, height):
-        lines = __doc__.split('\n')
-        self.font = font
-        self.line_space = 18
-        self.dim = (780, len(lines) * self.line_space + 12)
-        self.pos = (0.5 * width - 0.5 * self.dim[0], 0.5 * height - 0.5 * self.dim[1])
-        self.seconds_left = 0
-        self.surface = pygame.Surface(self.dim)
-        self.surface.fill((0, 0, 0, 0))
-        for n, line in enumerate(lines):
-            text_texture = self.font.render(line, True, (255, 255, 255))
-            self.surface.blit(text_texture, (22, n * self.line_space))
-            self._render = False
-        self.surface.set_alpha(220)
-
-    def toggle(self):
-        self._render = not self._render
-
-    def render(self, display):
-        if self._render:
-            display.blit(self.surface, self.pos)
-
 # ==============================================================================
 # -- HUD -----------------------------------------------------------------------
 # ==============================================================================
@@ -173,7 +95,6 @@ class HUD(object):
         mono = pygame.font.match_font(mono)
         self._font_mono = pygame.font.Font(mono, 12 if os.name == 'nt' else 14)
         self._notifications = FadingText(font, (width, 40), (0, height - 40))
-        self.help = HelpText(pygame.font.Font(mono, 16), width, height)
         self.server_fps = 0
         self.frame = 0
         self.simulation_time = 0
@@ -289,7 +210,6 @@ class HUD(object):
                     display.blit(surface, (8, v_offset))
                 v_offset += 18
         self._notifications.render(display)
-        self.help.render(display)
 
 # ==============================================================================
 # -- CollisionSensor -----------------------------------------------------------
@@ -634,16 +554,58 @@ class World(object):
 # ==============================================================================
 
 class SimpleController():
-    def __init__(self, world) -> None:
+    def __init__(self, world, args) -> None:
         self.world = world
         self.control = carla.VehicleControl()
+        self.parse_global_routes(args)
+        self.target_route = [] # x, y, z, yaw
+        
+    def parse_global_routes(self, args):
+        # get the xml file
+        xml_file = f"{SCENARI_RUNNER_ROOT}/AutoControl/config/routes.xml"
+        _root = ET.parse(xml_file).getroot()
+        start_point = carla.Location()
+        end_point = carla.Location()
+        scenario_name = args.scenario_name
+        
+        # find the route element
+        for _route in _root.findall("route"):
+            if _route.get('id') == scenario_name:
+                waypoints = _route.find("waypoints")
+                
+                start = waypoints.find("start")
+                end = waypoints.find("end")
+                
+                start_point.x = float(start.get('x'))
+                start_point.y = float(start.get('y'))
+                start_point.z = float(start.get('z'))
+                
+                end_point.x = float(end.get('x'))
+                end_point.y = float(end.get('y'))
+                end_point.z = float(end.get('z'))
+        
+        # set up the sampling resolution
+        sampling_resolution = 2.0
+        grp = GlobalRoutePlanner(self.world.map, sampling_resolution)
+        
+        # get the route
+        route = grp.trace_route(start_point, end_point)
+        
+        # Print the route
+        # print("Route:")
+        for i in range(len(route)):
+            # print(f"Waypoint {i}: {route[i][0].transform.location}")
+            # print(f"yaw: {route[i][0].transform.rotation.yaw}")
+            self.target_route.append([route[i][0].transform.location.x, route[i][0].transform.location.y, route[i][0].transform.location.z, route[i][0].transform.rotation.yaw])
+        print(f"parse route completed!")
+    
+    def compute_control(self, world, route):
+        pass
+
         
     def parse_events(self, client, world, clock):
         self.control.throttle = 0.5
         # print gnss data
-        gnss_data = world.gnss_sensor.lat, world.gnss_sensor.lon
-        print('GNSS data: {}'.format(gnss_data))
-        
         self.world.player.apply_control(self.control)
     
 # ==============================================================================
@@ -668,7 +630,7 @@ def game_loop(args):
 
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
-        controller = SimpleController(world)
+        controller = SimpleController(world, args)
 
         sim_world.wait_for_tick()
 
@@ -712,6 +674,11 @@ if __name__ == '__main__':
         metavar='H',
         default='127.0.0.1',
         help='IP of the host server (default: 127.0.0.1)')
+    argparser.add_argument(
+        '--scenario_name',
+        metavar='sn',
+        default='SingalizedJunctionLeftTurn_1',
+        help='The scenario name of the vehicle')
     argparser.add_argument(
         '-p', '--port',
         metavar='P',

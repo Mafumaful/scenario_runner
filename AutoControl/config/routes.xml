@@ -1,0 +1,16 @@
+<routes>
+    <route id="SingalizedJunctionLeftTurn_1">
+        <waypoints>
+            <start x="-133.699997" y="137.399994" z="0.033768" />
+            <end x="-73.713852" y="109.237030" z="0.250247" />
+        </waypoints>
+    </route>
+    <route id="scenario2">
+        <waypoints>
+            <start x="-133.699997" y="137.399994" z="0.033768" />
+            <end x="-73.713852" y="109.237030" z="0.250247" />
+        </waypoints>
+    </route>
+</routes>
+<!-- Location:  Location(x=-133.699997, y=137.399994, z=0.033768) -->
+<!-- Location(x=-73.713852, y=109.237030, z=0.250247) -->
