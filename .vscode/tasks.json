@@ -8,6 +8,7 @@
       "type": "shell",
       "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen"
     },
+
     {
       "label": "Run FreeRide 1",
       "type": "shell",
@@ -19,36 +20,21 @@
         "--sync",
         "--timeout",
         "60"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": []
+      ]
     },
 
     {
       "label": "Run Following Leading Vehicle 1",
       "type": "shell",
       "command": "${workspaceFolder}/scenario_runner.py",
-      "args": ["--scenario", "FollowLeadingVehicle_1", "--reloadWorld"],
-      "group": {
-        "kind": "build",
-        "isDefault": false
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared"
-      },
-      "problemMatcher": []
+      "args": ["--scenario", "FollowLeadingVehicle_1", "--reloadWorld"]
+    },
+
+    {
+      "label": "Run SignalizedJunctionLeftTurn",
+      "type": "shell",
+      "command": "${workspaceFolder}/scenario_runner.py",
+      "args": ["--scenario", "SignalizedJunctionLeftTurn_1", "--reloadWorld"]
     },
 
     {

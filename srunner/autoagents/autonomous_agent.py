@@ -66,6 +66,8 @@ class AutonomousAgent(object):
         Execute one step of navigation.
         :return: control
         """
+        plan = self._global_plan
+        
         control = carla.VehicleControl()
         control.steer = 0.0
         control.throttle = 0.0
