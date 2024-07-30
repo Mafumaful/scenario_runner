@@ -1,12 +1,60 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "launch Carla Server",
-            "type": "shell",
-            "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen",
-        }
-    ]
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "launch Carla Server",
+      "type": "shell",
+      "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen"
+    },
+    {
+      "label": "Run FreeRide 1",
+      "type": "shell",
+      "command": "${workspaceFolder}/scenario_runner.py",
+      "args": [
+        "--scenario",
+        "FreeRide_1",
+        "--reloadWorld",
+        "--sync",
+        "--timeout",
+        "60"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "Run Following Leading Vehicle 1",
+      "type": "shell",
+      "command": "${workspaceFolder}/scenario_runner.py",
+      "args": ["--scenario", "FollowLeadingVehicle_1", "--reloadWorld"],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "run manual control",
+      "type": "shell",
+      "command": " python manual_control.py"
+    }
+  ]
 }
