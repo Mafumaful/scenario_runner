@@ -469,6 +469,7 @@ class World(object):
         
         # this is set for the visualization of the route
         self.target_route = None
+        self.predicted_trajectories = None
     
     def restart(self):
         self.player_max_speed = 1.589
@@ -519,6 +520,9 @@ class World(object):
         self.camera_manager.render(display)
         if self.target_route is not None:
             self.render_route(display)
+        if self.predicted_trajectories is not None:
+            for trajectory in self.predicted_trajectories:
+                self.render_trajectory(display, trajectory)
         self.hud.render(display)
         
     def destroy_sensors(self):
@@ -582,18 +586,38 @@ class World(object):
             return
         
         points = self.target_route
-        points = points[:,:3] # x, y, z 
+        points = points[:,:3] # [[x, y, z],...] 
         target = self.calc_point_fromW2F(self, points)
         
         return target
     
     def render_route(self, display):
         route = self.calc_tr_in_cam()
+        # if route array is empty, then return
+        if route is None or not isinstance(route, np.ndarray):
+            return
+        
         max_size = route.shape[1]-1
         for i in range(max_size):
             start = (int(route[0][i]), int(route[1][i]))
             end = (int(route[0][i+1]), int(route[1][i+1]))
             pygame.draw.line(display, (190, 184, 220), start, end, int(6 - i/max_size*5))
+    
+    def render_trajectory(self, display, route, color=(255, 0, 0)):
+        # if route is not a numpy array, then convert it to numpy array
+        if not isinstance(route, np.ndarray):
+            return
+        
+        route_in_camera = self.calc_point_fromW2F(self, route)
+        
+        if route_in_camera is None or not isinstance(route_in_camera, np.ndarray):
+            return
+        
+        max_size = route_in_camera.shape[1]-1
+        for i in range(max_size):
+            start = (int(route_in_camera[0][i]), int(route_in_camera[1][i]))
+            end = (int(route_in_camera[0][i+1]), int(route_in_camera[1][i+1]))
+            pygame.draw.line(display, color, start, end, 2)
 
     def destroy(self):
         sensors = [
@@ -609,19 +633,34 @@ class World(object):
         if self.player is not None:
             self.player.destroy()
             
+# ==============================================================================
+# -- vehicle agents ------------------------------------------------------------
+# ==============================================================================
+
+class VehicleAgent(object):
+    def __init__(self) -> None:
+        transform = None # carla.Transform
+        predict_trajecotry = None # np.array
+        velocity = None # carla.Vector3D
+
 
 # ==============================================================================
 # -- Simple Controller ---------------------------------------------------------
 # ==============================================================================
 
 class SimpleController(object):
-    def __init__(self, world, hud, args) -> None:
+    def __init__(self, world, hud, display, args) -> None:
         self.world = world
         self.control = carla.VehicleControl()
         self.hud = hud
         self.target_route = None
-        self.parse_global_routes(args)
+        self.display = display
+        # initialize the other vehicle agents
+        self.vehicle_agents = None
+        self.predicted_trajectories = []
         
+        self.parse_global_routes(args)
+
     def parse_global_routes(self, args):
         # get the xml file
         xml_file = f"{SCENARI_RUNNER_ROOT}/AutoControl/config/routes.xml"
@@ -663,11 +702,59 @@ class SimpleController(object):
         
     def compute_control(self, world, route):
         pass
+    
+    def predict_other_vehicles(self, world):
+        self.vehicle_agents = []
+        for npc in world.world.get_actors().filter('vehicle.*'):
+            # if the vehicle is the ego vehicle, then skip
+            if npc.attributes['role_name'] == 'hero':
+                continue
+            
+            npc_transform = npc.get_transform()
+            dist = npc_transform.location.distance(world.player.get_transform().location)
+
+            # if the distance is larger than 50, then skip
+            if dist > 50:
+                continue
+            
+            # predict the trajectory of the other vehicles for 20 steps(2s)
+            predict_lenth = 20
+            dt = 0.1
+            
+            agent = VehicleAgent()
+            velocity = npc.get_velocity()
+            
+            positions = np.zeros((predict_lenth, 3))
+            
+            for i in range(predict_lenth):
+                positions[i] = (npc_transform.location.x, npc_transform.location.y, npc_transform.location.z)
+                npc_transform.location.x += velocity.x * dt
+                npc_transform.location.y += velocity.y * dt
+                npc_transform.location.z += velocity.z * dt
+                
+            agent.transform = npc_transform
+            agent.predict_trajecotry = positions
+            agent.velocity = velocity
+            
+            self.vehicle_agents.append(agent)
+        
+        # plot the predict trajectory
+        if self.vehicle_agents is not None:
+            for agent in self.vehicle_agents:
+                self.predicted_trajectories.append(agent.predict_trajecotry)
+                
+                
 
         
     def parse_events(self, client, world, clock):
         world.target_route = self.target_route
-        self.control.throttle = 0.6
+        self.predict_other_vehicles(world)
+        world.predicted_trajectories = self.predicted_trajectories
+        self.predicted_trajectories = []
+        
+        # current_transform = world.player.get_transform()
+        
+        self.control.throttle = 0.3
         # print gnss data
         self.world.player.apply_control(self.control)
     
@@ -693,7 +780,7 @@ def game_loop(args):
 
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
-        controller = SimpleController(world, hud, args)
+        controller = SimpleController(world, hud, display, args)
 
         sim_world.wait_for_tick()
 
