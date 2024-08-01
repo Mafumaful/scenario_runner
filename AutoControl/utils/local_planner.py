@@ -1,5 +1,7 @@
 import numpy as np
 import sys, os
+import carla
+
 # add the $SCEANRIO_RUNNER_ROOT to the python path
 SCENARI_RUNNER_ROOT = os.environ.get('SCENARIO_RUNNER_ROOT', None)
 if SCENARI_RUNNER_ROOT is not None:
@@ -129,3 +131,80 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
                 frenet_paths.append(tfp)
 
     return frenet_paths
+
+def simple_planner(ego_vehicle, global_path, obs_predicted_path):
+    '''
+    Params
+    ------
+    ego_vehicle: carla.Actor()
+        the ego vehicle
+    
+    global_path: np.array()
+        the path of the vehicle, which contains the position, orientation, velocity, etc.
+        [[x, y, z, yaw, v] ...] at the size of (N, 4)
+        
+    Returns
+    -------
+    candidate_routes: list
+        a list of candidate routes
+    choosed_route: list
+        the choosed route
+    '''
+    candidate_routes = []
+    choosed_route = None
+    
+    tranform = ego_vehicle.get_transform()
+    velocity = ego_vehicle.get_velocity()
+    
+    # get the tangent of the vector of velocity
+    yaw = np.arctan2(velocity.y, velocity.x)
+    yaws_candidates = [yaw+i*np.pi/10 for i in range(-3, 4)]
+    vec_velocity_candidates = [np.array([np.cos(yaw), np.sin(yaw)]) for yaw in yaws_candidates]
+    
+    dt = 0.2
+    velocity_scale = 60.0
+    # predict
+    for vec_velocity in vec_velocity_candidates:
+        candidate = np.zeros((100, 5))
+        x = tranform.location.x
+        y = tranform.location.y
+        z = tranform.location.z
+        for i in range(100):
+            x += vec_velocity[0] * velocity_scale * dt
+            y += vec_velocity[1] * velocity_scale * dt
+            z = tranform.location.z 
+            yaw = np.arctan2(vec_velocity[1], vec_velocity[0])
+            v = np.sqrt(vec_velocity[0]**2 + vec_velocity[1]**2)
+            candidate[i] = [x, y, z, yaw, v]
+        candidate_routes.append(candidate)
+    
+    choosed_index = 3
+    # choose the best route
+    choosed_route = candidate_routes[choosed_index]
+    # delete from the candidate list
+    del candidate_routes[choosed_index]
+    
+    return candidate_routes, choosed_route
+
+def frenet_planner(ego_vehicle, global_path, obs_predicted_path):
+    '''
+    Params
+    ------
+    ego_vehicle: carla.Actor()
+        the ego vehicle
+    
+    global_path: np.array()
+        the path of the vehicle, which contains the position, orientation, velocity, etc.
+        [[x, y, z, yaw, v] ...] at the size of (N, 4)
+        
+    Returns
+    -------
+    candidate_routes: list
+        a list of candidate routes
+    choosed_route: list
+        the choosed route
+    '''
+    candidate_routes = []
+    choosed_route = None
+    
+    return candidate_routes, choosed_route

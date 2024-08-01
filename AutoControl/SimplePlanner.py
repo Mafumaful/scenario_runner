@@ -48,6 +48,7 @@ if SCENARI_RUNNER_ROOT is not None:
 # frenet, spline dependencies
 # from AutoControl.utils.frenet import Frenet
 from AutoControl.utils.StanleyControl import StanleyController
+from AutoControl.utils.local_planner import simple_planner
 
 def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
@@ -472,6 +473,12 @@ class World(object):
         # this is set for the visualization of the route
         self.target_route = None
         self.predicted_trajectories = None
+        
+        # this is set for the ego vehicle, which is a dictionary.
+        # "candidate routes" is the candidate route
+        # "planner route" is the route that the planner will follow
+        # in order to distinguish the two routes, we will use the different color to represent them
+        self.planner_route = None
     
     def restart(self):
         self.player_max_speed = 1.589
@@ -527,7 +534,22 @@ class World(object):
         if self.predicted_trajectories is not None:
             for trajectory in self.predicted_trajectories:
                 self.render_trajectory(display, trajectory)
-        self.predicted_trajectories = None
+            self.predicted_trajectories = None
+        
+        # render the planner route
+        if self.planner_route is not None:
+            for route in self.planner_route:
+                #  if the dictionary contains the key "candidate routes", then render the candidate route
+                candidate_routes = self.planner_route["candidate routes"]
+                if candidate_routes is not None:
+                    for candidate_route in candidate_routes:
+                        self.render_trajectory(display, candidate_route, (0, 255, 0))
+                
+                choosed_route = self.planner_route["planner route"]
+                if choosed_route is not None:
+                    self.render_trajectory(display, choosed_route, (255, 0, 0))
+                    
+            self.planner_route = None
         
         self.hud.render(display)
         
@@ -557,6 +579,8 @@ class World(object):
         # calculate the world to camera matrix
         w2c = np.array(self.camera_manager.sensor.get_transform().get_inverse_matrix())
         
+        # keep the first 3 columns
+        points = points[:,:3]
         ones_column = np.ones((points.shape[0],1)) # x, y, z, 1
         points = np.hstack((points, ones_column)).T
         
@@ -664,7 +688,6 @@ class SimplePlanner(object):
         # initialize the other vehicle agents
         self.vehicle_agents = None
         self.predicted_trajectories = []
-        self.local_planner_route = None
         
         self.parse_global_routes(args)
 
@@ -729,10 +752,22 @@ class SimplePlanner(object):
     output of the local planner:
         trajectory of the ego vehicle
     '''
-    def local_planner(self):
-        transform = self.world.player.get_transform()
+    def update_local_planner(self):
         if self.predicted_trajectories is None:
             return
+        
+        # initialize the local planner
+        local_planner_route = {
+            "candidate routes": None,
+            "planner route": None
+        }
+        
+        candidate_routes, choosed_route = simple_planner(self.world.player, self.target_route, self.predicted_trajectories)
+        
+        local_planner_route["candidate routes"] = candidate_routes
+        local_planner_route["planner route"] = choosed_route
+        
+        return local_planner_route
         
     def compute_control(self, world, route):
         if self.local_planner_route is None:
@@ -791,6 +826,7 @@ class SimplePlanner(object):
         world.target_route = self.target_route
         # this step is for the visualization of the route
         world.predicted_trajectories =  self.predict_other_vehicles(world)
+        world.planner_route = self.update_local_planner()
         
         self.control.throttle = 0.3
         # print gnss data
