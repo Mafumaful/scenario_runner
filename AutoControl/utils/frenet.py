@@ -1,5 +1,11 @@
 import numpy as np
-from quintic_polynomials_planner import QuinticPolynomial
+import sys, os
+# add the $SCEANRIO_RUNNER_ROOT to the python path
+SCENARI_RUNNER_ROOT = os.environ.get('SCENARIO_RUNNER_ROOT', None)
+if SCENARI_RUNNER_ROOT is not None:
+    sys.path.append(SCENARI_RUNNER_ROOT)
+
+from AutoControl.utils.quintic_polynomials_planner import QuinticPolynomial
 import copy
 
 MAX_ROAD_WIDTH = 5.0  # maximum road width [m]

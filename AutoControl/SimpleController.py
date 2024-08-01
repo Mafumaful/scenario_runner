@@ -46,7 +46,7 @@ if SCENARI_RUNNER_ROOT is not None:
     sys.path.append(SCENARI_RUNNER_ROOT)
     
 # frenet, spline dependencies
-from AutoControl.utils.frenet import Frenet
+# from AutoControl.utils.frenet import Frenet
 
 def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
@@ -414,20 +414,7 @@ class CameraManager(object):
         self = weak_self()
         if not self:
             return
-        if self.sensors[self.index][0].startswith('sensor.lidar'):
-            points = np.frombuffer(image.raw_data, dtype=np.dtype('f4'))
-            points = np.reshape(points, (int(points.shape[0] / 4), 4))
-            lidar_data = np.array(points[:, :2])
-            lidar_data *= min(self.hud.dim) / (2.0 * self.lidar_range)
-            lidar_data += (0.5 * self.hud.dim[0], 0.5 * self.hud.dim[1])
-            lidar_data = np.fabs(lidar_data)  # pylint: disable=E1111
-            lidar_data = lidar_data.astype(np.int32)
-            lidar_data = np.reshape(lidar_data, (-1, 2))
-            lidar_img_size = (self.hud.dim[0], self.hud.dim[1], 3)
-            lidar_img = np.zeros((lidar_img_size), dtype=np.uint8)
-            lidar_img[tuple(lidar_data.T)] = (255, 255, 255)
-            self.surface = pygame.surfarray.make_surface(lidar_img)
-        elif self.sensors[self.index][0].startswith('sensor.camera.dvs'):
+        if self.sensors[self.index][0].startswith('sensor.camera.dvs'):
             # Example of converting the raw_data from a carla.DVSEventArray
             # sensor into a NumPy array and using it as an image
             dvs_events = np.frombuffer(image.raw_data, dtype=np.dtype([
@@ -479,6 +466,9 @@ class World(object):
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
         self.recording_start = 0
+        
+        # this is set for the visualization of the route
+        self.target_route = None
     
     def restart(self):
         self.player_max_speed = 1.589
@@ -527,12 +517,73 @@ class World(object):
     
     def render(self, display):
         self.camera_manager.render(display)
+        if self.target_route is not None:
+            self.render_route(display)
         self.hud.render(display)
         
     def destroy_sensors(self):
         self.camera_manager.sensor.destroy()
         self.camera_manager.sensor = None
         self.camera_manager.index = None
+    
+    def calc_point_fromW2F(self):
+        if self.target_route is None:
+            print("No target route is set")
+            return
+        
+        points = self.target_route
+        # build projection matrix of the camera
+        width =  int(self.camera_manager.sensor.attributes['image_size_x'])
+        height = int(self.camera_manager.sensor.attributes['image_size_y'])
+        fov = float(self.camera_manager.sensor.attributes['fov'])
+        
+        focal = width/(2*np.tan(fov*np.pi/360.0))
+        
+        K = np.identity(3)
+        K[0,0] = K[1,1] = focal
+        K[0,2] = width/2.0
+        K[1,2] = height/2.0
+        
+        # calculate the world to camera matrix
+        w2c = np.array(self.camera_manager.sensor.get_transform().get_inverse_matrix())
+        
+        points = points[:,:3] # x, y, z 
+        ones_column = np.ones((points.shape[0],1)) # x, y, z, 1
+        points = np.hstack((points, ones_column)).T
+        
+        # build projection matrix of the camera
+        points_in_camera = np.dot(w2c, points)
+        
+        # convert UE4 coordinate to standard coordinate
+        points_in_camera = np.array([points_in_camera[1], -points_in_camera[2], points_in_camera[0]])
+        
+        # convert to pixel coordinate
+        point_img = np.dot(K, points_in_camera)
+        
+        # normalize the pixel coordinate, divide by the third column
+        point_img /= point_img[2,:]
+        
+        # delete the points that are not in the camera view
+        # Define conditions for valid points
+        valid = (point_img[0, :] >= 0) & (point_img[0, :] < width) & \
+                (point_img[1, :] >= 0) & (point_img[1, :] < height) & \
+                (points_in_camera[2, :] >= 0)
+
+        # Keep only valid columns
+        point_img = point_img[:, valid]
+        
+        target_route_incamera = point_img[:2]
+        
+        
+        return target_route_incamera
+    
+    def render_route(self, display):
+        route = self.calc_point_fromW2F()
+        max_size = route.shape[1]-1
+        for i in range(max_size):
+            start = (int(route[0][i]), int(route[1][i]))
+            end = (int(route[0][i+1]), int(route[1][i+1]))
+            pygame.draw.line(display, (190, 184, 220), start, end, int(6 - i/max_size*5))
 
     def destroy(self):
         sensors = [
@@ -553,12 +604,13 @@ class World(object):
 # -- Simple Controller ---------------------------------------------------------
 # ==============================================================================
 
-class SimpleController():
-    def __init__(self, world, args) -> None:
+class SimpleController(object):
+    def __init__(self, world, hud, args) -> None:
         self.world = world
         self.control = carla.VehicleControl()
+        self.hud = hud
+        self.target_route = None
         self.parse_global_routes(args)
-        self.target_route = [] # x, y, z, yaw
         
     def parse_global_routes(self, args):
         # get the xml file
@@ -589,22 +641,23 @@ class SimpleController():
         grp = GlobalRoutePlanner(self.world.map, sampling_resolution)
         
         # get the route
-        route = grp.trace_route(start_point, end_point)
+        routes = grp.trace_route(start_point, end_point)
         
-        # Print the route
-        # print("Route:")
-        for i in range(len(route)):
-            # print(f"Waypoint {i}: {route[i][0].transform.location}")
-            # print(f"yaw: {route[i][0].transform.rotation.yaw}")
-            self.target_route.append([route[i][0].transform.location.x, route[i][0].transform.location.y, route[i][0].transform.location.z, route[i][0].transform.rotation.yaw])
-        print(f"parse route completed!")
-    
+        # x, y, yaw
+        self.target_route = np.zeros((len(routes),4))
+        for i,route in enumerate(routes):
+            self.target_route[i][0] = route[0].transform.location.x
+            self.target_route[i][1] = route[0].transform.location.y
+            self.target_route[i][2] = route[0].transform.location.z
+            self.target_route[i][3] = route[0].transform.rotation.yaw
+        
     def compute_control(self, world, route):
         pass
 
         
     def parse_events(self, client, world, clock):
-        self.control.throttle = 0.5
+        world.target_route = self.target_route
+        self.control.throttle = 0.6
         # print gnss data
         self.world.player.apply_control(self.control)
     
@@ -630,7 +683,7 @@ def game_loop(args):
 
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
-        controller = SimpleController(world, args)
+        controller = SimpleController(world, hud, args)
 
         sim_world.wait_for_tick()
 
