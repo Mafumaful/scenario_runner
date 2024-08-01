@@ -6,9 +6,9 @@
     {
       "label": "launch Carla Server",
       "type": "shell",
-      "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen"
+      "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen",
+      "problemMatcher": []
     },
-
     {
       "label": "Run FreeRide 1",
       "type": "shell",
@@ -22,21 +22,26 @@
         "60"
       ]
     },
-
     {
       "label": "Run Following Leading Vehicle 1",
       "type": "shell",
       "command": "${workspaceFolder}/scenario_runner.py",
       "args": ["--scenario", "FollowLeadingVehicle_1", "--reloadWorld"]
     },
-
     {
       "label": "Run SignalizedJunctionLeftTurn",
       "type": "shell",
       "command": "${workspaceFolder}/scenario_runner.py",
-      "args": ["--scenario", "SignalizedJunctionLeftTurn_1", "--reloadWorld"]
+      "args": ["--scenario", "SignalizedJunctionLeftTurn_1", "--reloadWorld"],
+      "problemMatcher": []
     },
-
+    {
+      "label": "Run SignalizedJunctionLeftTurn without reload",
+      "type": "shell",
+      "command": "${workspaceFolder}/scenario_runner.py",
+      "args": ["--scenario", "SignalizedJunctionLeftTurn_1"],
+      "problemMatcher": []
+    },
     {
       "label": "run manual control",
       "type": "shell",

@@ -47,6 +47,7 @@ if SCENARI_RUNNER_ROOT is not None:
     
 # frenet, spline dependencies
 # from AutoControl.utils.frenet import Frenet
+from AutoControl.utils.StanleyControl import StanleyController
 
 def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
@@ -219,6 +220,7 @@ class CollisionSensor(object):
     def __init__(self, parent_actor, hud) -> None:
         self.sensor = None
         self.history = []
+        self.hud = hud
         self._parent = parent_actor
         world = self._parent.get_world()
         bp = world.get_blueprint_library().find('sensor.other.collision')
@@ -520,9 +522,13 @@ class World(object):
         self.camera_manager.render(display)
         if self.target_route is not None:
             self.render_route(display)
+        
+        # render the predicted trajectories
         if self.predicted_trajectories is not None:
             for trajectory in self.predicted_trajectories:
                 self.render_trajectory(display, trajectory)
+        self.predicted_trajectories = None
+        
         self.hud.render(display)
         
     def destroy_sensors(self):
@@ -648,16 +654,17 @@ class VehicleAgent(object):
 # -- Simple Controller ---------------------------------------------------------
 # ==============================================================================
 
-class SimpleController(object):
-    def __init__(self, world, hud, display, args) -> None:
+class SimplePlanner(object):
+    def __init__(self, world, display, args) -> None:
         self.world = world
         self.control = carla.VehicleControl()
-        self.hud = hud
         self.target_route = None
         self.display = display
+        
         # initialize the other vehicle agents
         self.vehicle_agents = None
         self.predicted_trajectories = []
+        self.local_planner_route = None
         
         self.parse_global_routes(args)
 
@@ -669,17 +676,29 @@ class SimpleController(object):
         end_point = carla.Location()
         scenario_name = args.scenario_name
         
+        vehicle_location = self.world.player.get_transform().location
+        
+        
         # find the route element
         for _route in _root.findall("route"):
             if _route.get('id') == scenario_name:
                 waypoints = _route.find("waypoints")
-                
                 start = waypoints.find("start")
-                end = waypoints.find("end")
                 
                 start_point.x = float(start.get('x'))
                 start_point.y = float(start.get('y'))
                 start_point.z = float(start.get('z'))
+                
+                dist = vehicle_location.distance(start_point)
+                
+                # calculate the distance between the vehicle and the start point
+                print(f"Distance between the vehicle and the start point: {dist}")
+                if dist > 100:
+                    print("The vehicle is not in the start point")
+                    return
+                
+                start_point = vehicle_location
+                end = waypoints.find("end")
                 
                 end_point.x = float(end.get('x'))
                 end_point.y = float(end.get('y'))
@@ -699,12 +718,33 @@ class SimpleController(object):
             self.target_route[i][1] = route[0].transform.location.y
             self.target_route[i][2] = route[0].transform.location.z
             self.target_route[i][3] = route[0].transform.rotation.yaw
+            
+    '''
+    local_planner should take consideration of the other vehicles
+    input of the local planner: 
+        predicted trajectory of the other vehicles
+        global route
+        current state of the ego vehicle
+        
+    output of the local planner:
+        trajectory of the ego vehicle
+    '''
+    def local_planner(self):
+        transform = self.world.player.get_transform()
+        if self.predicted_trajectories is None:
+            return
         
     def compute_control(self, world, route):
-        pass
+        if self.local_planner_route is None:
+            print("No local planner route is set")
+            return
+        
+        control = StanleyController(self.local_planner_route, world.player.get_transform())
+        return control
     
     def predict_other_vehicles(self, world):
         self.vehicle_agents = []
+        trajectories = []
         for npc in world.world.get_actors().filter('vehicle.*'):
             # if the vehicle is the ego vehicle, then skip
             if npc.attributes['role_name'] == 'hero':
@@ -714,7 +754,7 @@ class SimpleController(object):
             dist = npc_transform.location.distance(world.player.get_transform().location)
 
             # if the distance is larger than 50, then skip
-            if dist > 50:
+            if dist > 100:
                 continue
             
             # predict the trajectory of the other vehicles for 20 steps(2s)
@@ -741,18 +781,16 @@ class SimpleController(object):
         # plot the predict trajectory
         if self.vehicle_agents is not None:
             for agent in self.vehicle_agents:
-                self.predicted_trajectories.append(agent.predict_trajecotry)
-                
-                
+                trajectories.append(agent.predict_trajecotry)
+    
+        self.predicted_trajectories = trajectories
+        return trajectories
 
-        
+    
     def parse_events(self, client, world, clock):
         world.target_route = self.target_route
-        self.predict_other_vehicles(world)
-        world.predicted_trajectories = self.predicted_trajectories
-        self.predicted_trajectories = []
-        
-        # current_transform = world.player.get_transform()
+        # this step is for the visualization of the route
+        world.predicted_trajectories =  self.predict_other_vehicles(world)
         
         self.control.throttle = 0.3
         # print gnss data
@@ -780,7 +818,7 @@ def game_loop(args):
 
         hud = HUD(args.width, args.height)
         world = World(sim_world, hud, args)
-        controller = SimpleController(world, hud, display, args)
+        controller = SimplePlanner(world, display, args)
 
         sim_world.wait_for_tick()
 
