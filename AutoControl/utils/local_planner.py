@@ -8,6 +8,7 @@ if SCENARI_RUNNER_ROOT is not None:
     sys.path.append(SCENARI_RUNNER_ROOT)
 
 from AutoControl.utils.quintic_polynomials_planner import QuinticPolynomial
+from AutoControl.utils.cubic_spline_planner import CubicSpline2D
 import copy
 
 MAX_ROAD_WIDTH = 5.0  # maximum road width [m]
@@ -139,16 +140,17 @@ def simple_planner(ego_vehicle, global_path, obs_predicted_path):
     ego_vehicle: carla.Actor()
         the ego vehicle
     
-    global_path: np.array()
+    global_path: cubic spline
         the path of the vehicle, which contains the position, orientation, velocity, etc.
-        [[x, y, z, yaw, v] ...] at the size of (N, 4)
         
     Returns
     -------
     candidate_routes: list
         a list of candidate routes
+        [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
     choosed_route: list
         the choosed route
+        [[x, y, z, yaw, v] ...] at the size of (N, 4)
     '''
     candidate_routes = []
     choosed_route = None
@@ -193,18 +195,39 @@ def frenet_planner(ego_vehicle, global_path, obs_predicted_path):
     ego_vehicle: carla.Actor()
         the ego vehicle
     
-    global_path: np.array()
+    global_path: cubic spline
         the path of the vehicle, which contains the position, orientation, velocity, etc.
-        [[x, y, z, yaw, v] ...] at the size of (N, 4)
         
     Returns
     -------
     candidate_routes: list
         a list of candidate routes
+        [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
     choosed_route: list
         the choosed route
+        [[x, y, z, yaw, v] ...] at the size of (N, 4)
     '''
     candidate_routes = []
     choosed_route = None
     
     return candidate_routes, choosed_route
+
+class FrenetOptimalPlanner(object):
+    def __init__(self, csp_target: CubicSpline2D) -> None:
+        # scalar states
+        self.current_speed = 0.0
+        self.current_accel = 0.0
+        
+        # Frenet states
+        self.current_d = 0.0 # current lateral position [m]
+        self.current_d_d = 0.0 # current lateral speed [m/s]
+        self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
+        self.current_s = 0.0 # current longitudinal position [m]
+        
+        self.csp = csp_target # the target path (spline)
+        
+    def update(self, ego_vehicle: carla.Actor):
+        candidate_routes = []
+        choosed_route = None
+        
+        return candidate_routes, choosed_route

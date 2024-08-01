@@ -49,6 +49,10 @@ if SCENARI_RUNNER_ROOT is not None:
 # from AutoControl.utils.frenet import Frenet
 from AutoControl.utils.StanleyControl import StanleyController
 from AutoControl.utils.local_planner import simple_planner
+from AutoControl.utils.local_planner import FrenetOptimalPlanner
+
+# turn the route into the spline
+from AutoControl.utils.cubic_spline_planner import calc_spline_course
 
 def get_actor_display_name(actor, truncate=250):
     name = ' '.join(actor.type_id.replace('_', '.').title().split('.')[1:])
@@ -688,8 +692,14 @@ class SimplePlanner(object):
         # initialize the other vehicle agents
         self.vehicle_agents = None
         self.predicted_trajectories = []
+        self.csp_target = None # cubic spline planner target
+        
+        # local planner
+        # self.lp = FrenetOptimalPlanner()
         
         self.parse_global_routes(args)
+        # this is for the visualization of the route
+        world.target_route = self.target_route
 
     def parse_global_routes(self, args):
         # get the xml file
@@ -734,7 +744,7 @@ class SimplePlanner(object):
         # get the route
         routes = grp.trace_route(start_point, end_point)
         
-        # x, y, yaw
+        # x, y, z, yaw
         self.target_route = np.zeros((len(routes),4))
         for i,route in enumerate(routes):
             self.target_route[i][0] = route[0].transform.location.x
@@ -742,17 +752,24 @@ class SimplePlanner(object):
             self.target_route[i][2] = route[0].transform.location.z
             self.target_route[i][3] = route[0].transform.rotation.yaw
             
-    '''
-    local_planner should take consideration of the other vehicles
-    input of the local planner: 
-        predicted trajectory of the other vehicles
-        global route
-        current state of the ego vehicle
+        # calculate the csp target
+        temp_xy = self.target_route[:,:2]
+        list_x = temp_xy[:,0].tolist()
+        list_y = temp_xy[:,1].tolist()
         
-    output of the local planner:
-        trajectory of the ego vehicle
-    '''
+        # self.csp_target = calc_spline_course(list_x, list_y)
+            
     def update_local_planner(self):
+        '''
+        local_planner should take consideration of the other vehicles
+        input of the local planner: 
+            predicted trajectory of the other vehicles
+            global route
+            current state of the ego vehicle
+            
+        output of the local planner:
+            trajectory of the ego vehicle
+        '''
         if self.predicted_trajectories is None:
             return
         
@@ -762,7 +779,8 @@ class SimplePlanner(object):
             "planner route": None
         }
         
-        candidate_routes, choosed_route = simple_planner(self.world.player, self.target_route, self.predicted_trajectories)
+        candidate_routes, choosed_route = simple_planner(self.world.player, self.csp_target, self.predicted_trajectories)
+        # candidate_routes, choosed_route = self.lp.plan(self.world.player, self.csp_target, self.predicted_trajectories)
         
         local_planner_route["candidate routes"] = candidate_routes
         local_planner_route["planner route"] = choosed_route
@@ -821,14 +839,25 @@ class SimplePlanner(object):
         self.predicted_trajectories = trajectories
         return trajectories
 
-    
-    def parse_events(self, client, world, clock):
-        world.target_route = self.target_route
+    def parse_events(self, client, world, clock):        
         # this step is for the visualization of the route
         world.predicted_trajectories =  self.predict_other_vehicles(world)
-        world.planner_route = self.update_local_planner()
         
-        self.control.throttle = 0.3
+        # local planner update
+        world.planner_route = self.update_local_planner()
+                
+        # controller update 
+        self.control = StanleyController(world.planner_route["planner route"], world.player.get_transform())
+        
+        # judge whether the vehicle has reached the destination
+        target = carla.Location()
+        target.x = self.target_route[-1][0]
+        target.y = self.target_route[-1][1]
+        target.z = self.target_route[-1][2]
+        if world.player.get_transform().location.distance(target) < 2.0:
+            print("The vehicle has reached the destination")
+            return True
+
         # print gnss data
         self.world.player.apply_control(self.control)
     
