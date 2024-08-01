@@ -133,6 +133,12 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
 
     return frenet_paths
 
+def calc_global_paths(fplist, csp):
+    pass
+
+def check_paths(fplist, ob):
+    pass
+
 def simple_planner(ego_vehicle, global_path, obs_predicted_path):
     '''
     Params
@@ -188,29 +194,25 @@ def simple_planner(ego_vehicle, global_path, obs_predicted_path):
     
     return candidate_routes, choosed_route
 
-def frenet_planner(ego_vehicle, global_path, obs_predicted_path):
+def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     '''
     Params
     ------
-    ego_vehicle: carla.Actor()
-        the ego vehicle
-    
-    global_path: cubic spline
-        the path of the vehicle, which contains the position, orientation, velocity, etc.
+    csp: cubic spline
+        the target path
+    s0: float
+        the initial position
+    c_speed: float
+        the current speed
+    c_accel: float
+        the current acceleration
         
     Returns
     -------
-    candidate_routes: list
-        a list of candidate routes
-        [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
-    choosed_route: list
-        the choosed route
-        [[x, y, z, yaw, v] ...] at the size of (N, 4)
+    best_path: list
+        the best path
     '''
-    candidate_routes = []
-    choosed_route = None
-    
-    return candidate_routes, choosed_route
+    pass
 
 class FrenetOptimalPlanner(object):
     def __init__(self, csp_target: CubicSpline2D) -> None:
@@ -226,8 +228,28 @@ class FrenetOptimalPlanner(object):
         
         self.csp = csp_target # the target path (spline)
         
-    def update(self, ego_vehicle: carla.Actor):
+    def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array) -> None:
+        '''
+        Params
+        ------
+        ego_vehicle: carla.Actor()
+            the ego vehicle
+        
+        global_path: cubic spline
+            the path of the vehicle, which contains the position, orientation, velocity, etc.
+            
+        Returns
+        -------
+        candidate_routes: list
+            a list of candidate routes
+            [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
+        choosed_route: list
+            the choosed route
+            [[x, y, z, yaw, v] ...] at the size of (N, 4)
+        '''
         candidate_routes = []
         choosed_route = None
+        
+        
         
         return candidate_routes, choosed_route

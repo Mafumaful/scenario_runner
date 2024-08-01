@@ -100,5 +100,6 @@ def StanleyController(local_route, current_state):
     """
     control = carla.VehicleControl()
     control.throttle = 0.3
+    control.steer = 0.0
     
     return control

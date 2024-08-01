@@ -24,7 +24,7 @@ class CubicSpline1D:
     
     def __init__(self, x, y):
         h = np.diff(x)
-        if np.any(h <= 0):
+        if np.any(h < 0):
             raise ValueError("x coordinates must be sorted in ascending order")
         
         self.a, self.b, self.c, self.d = [], [], [], []
@@ -48,121 +48,125 @@ class CubicSpline1D:
             self.d.append(d)
             self.b.append(b)
             
-        def calc_position(self, x):
-            """
-            Calculate 'y' position for given 'x' position
-            
-            if 'x' is outside the data range, return None
-            
-            Returns
-            -------
-            y: float
-                y position for given x position
-            """
-            
-            if x<self.x[0] or x>self.x[-1]:
-                return None
-            
-            i = self.__search_index(x)
-            dx = x - self.x[i]
-            position = self.a[i] + self.b[i] * dx + self.c[i] * dx ** 2 + self.d[i] * dx ** 3
-            
-            return position
+    def calc_position(self, x):
+        """
+        Calculate 'y' position for given 'x' position
         
-        def calc_first_derivative(self, x):
-            """
-            Calculate the first derivative at x position
-            
-            if x is outside the data range, return None
-            
-            Returns
-            -------
-            dydx: float
-                the first derivative at x position
-            """
-            
-            if x<self.x[0] or x>self.x[-1]:
-                return None
-            
-            i = self.__search_index(x)
-            dx = x - self.x[i]
-            dydx = self.b[i] + 2 * self.c[i] * dx + 3 * self.d[i] * dx ** 2
-            
-            return dydx
+        if 'x' is outside the data range, return None
         
-        def calc_second_derivative(self, x):
-            """
-            Calculate the second derivative at x position
-            
-            if x is outside the data range, return None
-            
-            Returns
-            -------
-            d2ydx2: float
-                the second derivative at x position
-            """
-            
-            if x<self.x[0] or x>self.x[-1]:
-                return None
-            
-            i = self.__search_index(x)
-            dx = x - self.x[i]
-            d2ydx2 = 2 * self.c[i] + 6 * self.d[i] * dx
-            
-            return d2ydx2
+        Returns
+        -------
+        y: float
+            y position for given x position
+        """
         
-        def __search_index(self, x):
-            """
-            search data segment index
-            
-            Returns
-            -------
-            i: int
-                data segment index
-            """
-            
-            return bisect.bisect(self.x, x) - 1
+        if x<self.x[0] or x>self.x[-1]:
+            return None
         
-        def __calc_A(self, h):
-            """
-            calculate matrix A for spline coefficient c
-            
-            Returns
-            -------
-            A: numpy.ndarray
-                matrix A for spline coefficient c
-            """
-            
-            A = np.zeros((self.nx, self.nx))
-            A[0, 0] = 1.0
-            for i in range(self.nx - 1):
-                if i != (self.nx - 2):
-                    A[i + 1, i + 1] = 2.0 * (h[i] + h[i + 1])
-                A[i + 1, i] = h[i]
-                A[i, i + 1] = h[i]
-                
-            A[0, 1] = 0.0
-            A[self.nx - 1, self.nx - 2] = 0.0
-            A[self.nx - 1, self.nx - 1] = 1.0
-            
-            return A
+        i = self.__search_index(x)
+        dx = x - self.x[i]
+        position = self.a[i] + self.b[i] * dx + self.c[i] * dx ** 2 + self.d[i] * dx ** 3
         
-        def __calc_B(self, h):
-            """
-            calculate matrix B for spline coefficient c
+        return position
+    
+    def calc_first_derivative(self, x):
+        """
+        Calculate the first derivative at x position
+        
+        if x is outside the data range, return None
+        
+        Returns
+        -------
+        dydx: float
+            the first derivative at x position
+        """
+        
+        if x<self.x[0] or x>self.x[-1]:
+            return None
+        
+        i = self.__search_index(x)
+        dx = x - self.x[i]
+        dydx = self.b[i] + 2 * self.c[i] * dx + 3 * self.d[i] * dx ** 2
+        
+        return dydx
+    
+    def calc_second_derivative(self, x):
+        """
+        Calculate the second derivative at x position
+        
+        if x is outside the data range, return None
+        
+        Returns
+        -------
+        d2ydx2: float
+            the second derivative at x position
+        """
+        
+        if x<self.x[0] or x>self.x[-1]:
+            return None
+        
+        i = self.__search_index(x)
+        dx = x - self.x[i]
+        d2ydx2 = 2 * self.c[i] + 6 * self.d[i] * dx
+        
+        return d2ydx2
+    
+    def __search_index(self, x):
+        """
+        search data segment index
+        
+        Returns
+        -------
+        i: int
+            data segment index
+        """
+        
+        return bisect.bisect(self.x, x) - 1
+    
+    def __calc_A(self, h):
+        """
+        calculate matrix A for spline coefficient c
+        
+        Returns
+        -------
+        A: numpy.ndarray
+            matrix A for spline coefficient c
+        """
+        
+        A = np.zeros((self.nx, self.nx))
+        A[0, 0] = 1.0
+        for i in range(self.nx - 1):
+            if i != (self.nx - 2):
+                A[i + 1, i + 1] = 2.0 * (h[i] + h[i + 1])
+            A[i + 1, i] = h[i]
+            A[i, i + 1] = h[i]
             
-            Returns
-            -------
-            B: numpy.ndarray
-                matrix B for spline coefficient c
-            """
+        A[0, 1] = 0.0
+        A[self.nx - 1, self.nx - 2] = 0.0
+        A[self.nx - 1, self.nx - 1] = 1.0
+        
+        return A
+    
+    def __calc_B(self, h):
+        """
+        calculate matrix B for spline coefficient c
+        
+        Returns
+        -------
+        B: numpy.ndarray
+            matrix B for spline coefficient c
+        """
+        
+        B = np.zeros(self.nx)
+        
+        for i in range(self.nx - 2):
+            # h[i], h[i+1] must not be zero because of the assumption of the existence of the next data
+            h[i] = 1e-6 if h[i] == 0 else h[i]
+            h[i + 1] = 1e-6 if h[i + 1] == 0 else h[i + 1]
+            B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / h[i + 1]\
+                - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
             
-            B = np.zeros(self.nx)
-            for i in range(self.nx - 2):
-                B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / h[i + 1]\
-                    - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
-                
-            return B
+        return B
         
 class CubicSpline2D:
     """
@@ -268,5 +272,13 @@ def calc_spline_course(x, y, ds=0.1):
         ry.append(iy)
         ryaw.append(sp.calc_yaw(i_s))
         rk.append(sp.calc_curvature(i_s))
+        
+    # plot
+    # import matplotlib.pyplot as plt
+    # plt.plot(x, y, "xb", label="input")
+    # plt.plot(rx, ry, "-r", label="spline")
+    # plt.grid(True)
+    # plt.axis("equal")
+    # plt.show()
         
     return rx, ry, ryaw, rk

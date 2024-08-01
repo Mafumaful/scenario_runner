@@ -693,13 +693,12 @@ class SimplePlanner(object):
         self.vehicle_agents = None
         self.predicted_trajectories = []
         self.csp_target = None # cubic spline planner target
-        
-        # local planner
-        # self.lp = FrenetOptimalPlanner()
-        
+
         self.parse_global_routes(args)
         # this is for the visualization of the route
         world.target_route = self.target_route
+        # local planner
+        self.lp = FrenetOptimalPlanner(self.csp_target)
 
     def parse_global_routes(self, args):
         # get the xml file
@@ -710,7 +709,6 @@ class SimplePlanner(object):
         scenario_name = args.scenario_name
         
         vehicle_location = self.world.player.get_transform().location
-        
         
         # find the route element
         for _route in _root.findall("route"):
@@ -751,13 +749,12 @@ class SimplePlanner(object):
             self.target_route[i][1] = route[0].transform.location.y
             self.target_route[i][2] = route[0].transform.location.z
             self.target_route[i][3] = route[0].transform.rotation.yaw
-            
-        # calculate the csp target
-        temp_xy = self.target_route[:,:2]
-        list_x = temp_xy[:,0].tolist()
-        list_y = temp_xy[:,1].tolist()
         
-        # self.csp_target = calc_spline_course(list_x, list_y)
+        # calculate the csp target
+        list_x = self.target_route[:,0].tolist()
+        list_y = self.target_route[:,1].tolist()
+        
+        self.csp_target = calc_spline_course(list_x, list_y, 0.1)
             
     def update_local_planner(self):
         '''
@@ -779,8 +776,8 @@ class SimplePlanner(object):
             "planner route": None
         }
         
-        candidate_routes, choosed_route = simple_planner(self.world.player, self.csp_target, self.predicted_trajectories)
-        # candidate_routes, choosed_route = self.lp.plan(self.world.player, self.csp_target, self.predicted_trajectories)
+        # candidate_routes, choosed_route = simple_planner(self.world.player, self.csp_target, self.predicted_trajectories)
+        candidate_routes, choosed_route = self.lp.update(self.world.player, self.predicted_trajectories)
         
         local_planner_route["candidate routes"] = candidate_routes
         local_planner_route["planner route"] = choosed_route
