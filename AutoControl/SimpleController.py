@@ -526,12 +526,12 @@ class World(object):
         self.camera_manager.sensor = None
         self.camera_manager.index = None
     
-    def calc_point_fromW2F(self):
-        if self.target_route is None:
-            print("No target route is set")
-            return
-        
-        points = self.target_route
+    '''
+    if the input of the function is a point array, then it will return the point in the camera view
+    @input points: the points in the world coordinate[[x,y,z],...]
+    '''
+    @staticmethod
+    def calc_point_fromW2F(self, points):
         # build projection matrix of the camera
         width =  int(self.camera_manager.sensor.attributes['image_size_x'])
         height = int(self.camera_manager.sensor.attributes['image_size_y'])
@@ -547,13 +547,12 @@ class World(object):
         # calculate the world to camera matrix
         w2c = np.array(self.camera_manager.sensor.get_transform().get_inverse_matrix())
         
-        points = points[:,:3] # x, y, z 
         ones_column = np.ones((points.shape[0],1)) # x, y, z, 1
         points = np.hstack((points, ones_column)).T
         
         # build projection matrix of the camera
         points_in_camera = np.dot(w2c, points)
-        
+
         # convert UE4 coordinate to standard coordinate
         points_in_camera = np.array([points_in_camera[1], -points_in_camera[2], points_in_camera[0]])
         
@@ -574,11 +573,22 @@ class World(object):
         
         target_route_incamera = point_img[:2]
         
-        
         return target_route_incamera
+        
+    # calculate target route in the camera view
+    def calc_tr_in_cam(self):
+        if self.target_route is None:
+            print("No target route is set")
+            return
+        
+        points = self.target_route
+        points = points[:,:3] # x, y, z 
+        target = self.calc_point_fromW2F(self, points)
+        
+        return target
     
     def render_route(self, display):
-        route = self.calc_point_fromW2F()
+        route = self.calc_tr_in_cam()
         max_size = route.shape[1]-1
         for i in range(max_size):
             start = (int(route[0][i]), int(route[1][i]))
