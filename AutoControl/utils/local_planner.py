@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import sys, os
 import carla
 
@@ -20,6 +21,10 @@ TARGET_SPEED = 10.0 / 3.6  # target speed [m/s]
 D_T_S = 1.0 / 3.6  # target speed sampling length [m/s]
 N_S_SAMPLE = 1  # sampling number of target speed
 ROBOT_RADIUS = 2.0  # robot radius [m]
+
+MAX_SPEED = 150.0 / 3.6  # maximum speed [m/s]
+MAX_ACCEL = 12.0  # maximum acceleration [m/ss]
+MAX_CURVATURE = 12.0  # maximum curvature [1/m]
 
 K_J = 0.1  # weight of jerk
 K_T = 0.1  # weight of time
@@ -88,6 +93,7 @@ class FrenetPath:
         self.yaw = []
         self.ds = []
         self.c = []
+        self.v = []
         
 def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
     frenet_paths = []
@@ -118,6 +124,8 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
                 tfp.s_d = [lon_qp.calc_first_derivative(t) for t in fp.t]
                 tfp.s_dd = [lon_qp.calc_second_derivative(t) for t in fp.t]
                 tfp.s_ddd = [lon_qp.calc_third_derivative(t) for t in fp.t]
+                
+                tfp.v = [np.hypot(tfp.s_d[i], tfp.d_d[i]) for i in range(len(tfp.s_d))]
 
                 Jp = sum(np.power(tfp.d_ddd, 2))  # square of jerk
                 Js = sum(np.power(tfp.s_ddd, 2))  # square of jerk
@@ -134,10 +142,71 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
     return frenet_paths
 
 def calc_global_paths(fplist, csp):
-    pass
+    for fp in fplist:
+        
+        # calc global positions
+        for i in range(len(fp.s)):
+            ix, iy = csp.calc_position(fp.s[i])
+            if ix is None:
+                break
+            iyaw = csp.calc_yaw(fp.s[i]) # csp is the cubic spline path
+            di = fp.d[i]
+            fx = ix + di * math.cos(iyaw + math.pi / 2.0)
+            fy = iy + di * math.sin(iyaw + math.pi / 2.0)
+            fp.x.append(fx)
+            fp.y.append(fy)
+            
+        # calc yaw and ds
+        for i in range(len(fp.x) - 1):
+            dx = fp.x[i + 1] - fp.x[i]
+            dy = fp.y[i + 1] - fp.y[i]
+            fp.yaw.append(math.atan2(dy, dx))
+            fp.ds.append(math.hypot(dx, dy))
+            
+        fp.yaw.append(fp.yaw[-1])
+        fp.ds.append(fp.ds[-1])
+        
+        # calc curvature
+        for i in range(len(fp.yaw) - 1):
+            fp.c.append((fp.yaw[i + 1] - fp.yaw[i]) / fp.ds[i])
+            
+    return fplist
 
-def check_paths(fplist, ob):
-    pass
+def check_collision(fp, ob):
+    for x,y in zip(fp.x, fp.y):
+        for ox, oy, _ in ob:
+            dx = x - ox
+            dy = y - oy
+            d = dx**2 + dy**2
+            if d <= ROBOT_RADIUS**2:
+                return True
+    return False
+
+def check_paths(fplist, obs):
+    ok_index = []
+    # print('check_paths')
+    # print("obs:", obs)
+    for i, _ in enumerate(fplist):
+        obs_check_pass = True
+        if obs is not None:
+            for ob in obs:
+                # print('ob:', ob)
+                if check_collision(fplist[i], ob):
+                    obs_check_pass = False
+                    continue
+                
+        if not obs_check_pass:
+            continue
+        elif any([v > MAX_SPEED for v in fplist[i].s_d]):
+            continue
+        elif any([abs(a) > MAX_ACCEL for a in fplist[i].s_dd]):
+            continue
+        elif any([abs(c) > MAX_CURVATURE for c in fplist[i].c]):
+            continue
+        
+        ok_index.append(i)
+    
+    return [fplist[i] for i in ok_index]
 
 def simple_planner(ego_vehicle, global_path, obs_predicted_path):
     '''
@@ -209,24 +278,50 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
         
     Returns
     -------
-    best_path: list
-        the best path
+    candidate_routes:list of np.array()
+        a list of candidate routes
+        [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
+    choosed_route:
+        [[x, y, z, yaw, v] ...] at the size of (N, 4)
     '''
-    pass
+    fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
+    fplist = calc_global_paths(fplist_init, csp)
+    fplist = check_paths(fplist, ob)
+    
+    if len(fplist) == 0:
+        fplist = fplist_init # if no path is found, use the initial path
+    
+    # choose the best path
+    min_cost = float('inf')
+    best_path_index = 0
+    for fp in fplist:
+        if min_cost >= fp.cf:
+            min_cost = fp.cf
+            best_path_index = fplist.index(fp)
+    
+    # assert it's in the index if not print the info of the path and the index
+    # choosed_route = fplist[best_path_index]    
+    choosed_route = copy.deepcopy(fplist[best_path_index])
+    del fplist[best_path_index]
+    
+    return fplist, choosed_route
 
 class FrenetOptimalPlanner(object):
-    def __init__(self, csp_target: CubicSpline2D) -> None:
-        # scalar states
-        self.current_speed = 0.0
+    def __init__(self, ego_vehicle: carla.Actor, csp_target: CubicSpline2D) -> None:        
+        self.csp = csp_target # the target path (spline)
+        
+        velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
+        location = np.array([ego_vehicle.get_location().x, ego_vehicle.get_location().y])
+        
+        # calculate the current speed and acceleration
+        self.current_speed = np.hypot(velocity[0], velocity[1])
         self.current_accel = 0.0
         
-        # Frenet states
-        self.current_d = 0.0 # current lateral position [m]
-        self.current_d_d = 0.0 # current lateral speed [m/s]
+        best_index = self.calc_best_index(location, self.csp)
+        self.current_d= self.calc_distance(location, csp_target, best_index) # current lateral position [m]
+        self.current_d_d = 0.0 # current lateral speed [m/s] 
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
-        self.current_s = 0.0 # current longitudinal position [m]
-        
-        self.csp = csp_target # the target path (spline)
+        self.current_s = self.csp.s[best_index] # current longitudinal position [m]
         
     def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array) -> None:
         '''
@@ -250,6 +345,152 @@ class FrenetOptimalPlanner(object):
         candidate_routes = []
         choosed_route = None
         
+        # update the current state of the vehicle    
+        velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
+        location = np.array([ego_vehicle.get_location().x, ego_vehicle.get_location().y])
         
+        # calculate the current speed and acceleration
+        self.current_speed = np.hypot(velocity[0], velocity[1])
+        self.current_accel = 0.0
+        
+        best_index = self.calc_best_index(location, self.csp)
+        self.current_d = self.calc_distance(location, self.csp, best_index) # current lateral position [m]
+        self.current_d_d = 0.0 # current lateral speed [m/s]
+        self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
+        self.current_s = self.csp.s[best_index] # current longitudinal position [m]
+        
+        # update the candidate routes and the choosed route
+        temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(self.csp, self.current_s, self.current_speed, self.current_accel, self.current_d, self.current_d_d, self.current_d_dd, obs_predicted_path)
+        # print('candidate_routes:', candidate_routes)
+        # print('choosed_route:', choosed_route)
+        
+        return self.convert_format(temp_candidate_routes, temp_choosed_route)
+    
+    @staticmethod
+    def calc_best_index(location, csp):
+        '''
+        Params
+        ------
+        location: np.array()
+            the location of the vehicle
+        csp: cubic spline
+            the target path
+            
+        Returns
+        -------
+        best_index: int
+            the index of the best path
+        '''
+        # calculate the best index
+        min_dist = float('inf')
+        best_index = 0
+        
+        # binary search
+        index_l, index_r = 0, len(csp.s) - 1
+        while index_r - index_l > 1:
+            index = (index_l + index_r) // 2
+            x, y = csp.calc_position(csp.s[index])
+            dist = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
+            if dist < min_dist:
+                min_dist = dist
+                best_index = index
+            if x > location[0]:
+                index_r = index
+            else:
+                index_l = index
+        
+        return best_index
+    
+    @staticmethod
+    def calc_distance(location, csp, index):
+        '''
+        Params
+        ------
+        location: np.array()
+            the location of the vehicle
+        csp: cubic spline
+            the target path
+            
+        Returns
+        -------
+        distance: float
+            the distance between the vehicle and the target path
+        '''
+        x, y = csp.calc_position(csp.s[index])
+        distance = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
+        
+        return distance
+        
+    
+    @staticmethod
+    def calc_s(location, csp):
+        '''
+        Params
+        ------
+        location: np.array()
+            the location of the vehicle
+        csp: cubic spline
+            the target path
+            
+        Returns
+        -------
+        s: float
+            the longitudinal position of the vehicle
+        '''
+        # calculate the s value given the location
+        min_dist = float('inf')
+        
+        # binary search
+        sl, sr = 0, csp.s[-1]
+        while sr - sl > 0.1:
+            s = (sl + sr) / 2
+            x, y = csp.calc_position(s)
+            dist = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
+            if dist < min_dist:
+                min_dist = dist
+                min_index = s
+            if x > location[0]:
+                sr = s
+            else:
+                sl = s
+                
+        return 
+    
+    @staticmethod
+    def convert_format(candidates, target):
+        """
+        Params
+        ------
+        candidates: list(FrenetPath)
+            a list of candidate paths
+        
+        target: FrenetPath
+            the target path
+        
+        Returns
+        -------
+        candidate_routes: list(np.array())
+            a list of candidate routes
+            [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
+            
+        choosed_route: np.array()
+        """
+        
+        candidate_routes = []
+        choosed_route = np.zeros((len(target.x), 5))
+        
+        for candidate in candidates:
+            temp_candidate = np.zeros((len(candidate.x), 5))
+            temp_candidate[:, 0] = np.array(candidate.x)
+            temp_candidate[:, 1] = np.array(candidate.y)
+            temp_candidate[:, 3] = np.array(candidate.yaw)
+            temp_candidate[:, 4] = np.array(candidate.v)
+            
+            candidate_routes.append(temp_candidate)
+            
+        choosed_route[:, 0] = np.array(target.x)
+        choosed_route[:, 1] = np.array(target.y)
+        choosed_route[:, 3] = np.array(target.yaw)
+        choosed_route[:, 4] = np.array(target.v)
         
         return candidate_routes, choosed_route

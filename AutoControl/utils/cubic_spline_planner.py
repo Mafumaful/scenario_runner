@@ -62,8 +62,12 @@ class CubicSpline1D:
         
         if x<self.x[0] or x>self.x[-1]:
             return None
-        
+                
         i = self.__search_index(x)
+        # check if run out of 
+        if i == self.nx - 1:
+            i = self.nx - 2
+        
         dx = x - self.x[i]
         position = self.a[i] + self.b[i] * dx + self.c[i] * dx ** 2 + self.d[i] * dx ** 3
         
@@ -281,4 +285,4 @@ def calc_spline_course(x, y, ds=0.1):
     # plt.axis("equal")
     # plt.show()
         
-    return rx, ry, ryaw, rk
+    return rx, ry, ryaw, rk, sp

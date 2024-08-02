@@ -81,7 +81,7 @@ def normalize_angle(angle):
     """
     return angle_mod(angle)
 
-def StanleyController(local_route, current_state):
+def StanleyController(local_route, current_state, current_speed):
     """
     Stanley Controller
     
@@ -89,7 +89,7 @@ def StanleyController(local_route, current_state):
     ------
     local_route: np.array()
         the route calculated by the local planner from start to goal, which contains the waypoints and the target speed
-        [[x, y, v], ...]
+        [[x, y, yaw, v], ...]
     current_state: carla.transform()
         current state of the vehicle, which contains the location and orientation of the vehicle
         
@@ -99,7 +99,53 @@ def StanleyController(local_route, current_state):
         control signal for the vehicle
     """
     control = carla.VehicleControl()
-    control.throttle = 0.3
-    control.steer = 0.0
+
+    if len(local_route) == 0:
+        control.throttle = 0.0
+        control.brake = 1.0
+        control.steer = 0.0
+        return control
+    
+    current_location = current_state.location
+    current_orientation = current_state.rotation.yaw
+    
+    # Find the nearest waypoint
+    min_dist = float('inf')
+    index_l, index_r = 0, len(local_route)-1
+    
+    for i in range(len(local_route)):
+        dist = np.sqrt((current_location.x - local_route[i][0])**2 + (current_location.y - local_route[i][1])**2)
+        if dist < min_dist:
+            min_dist = dist
+            index_l = i
+            
+    # Find the nearest waypoint in the forward direction
+    wp = local_route[index_l]
+    wp_orientation = wp[2]
+    wp_location = carla.Location(x=wp[0], y=wp[1], z=0.0)
+    wp_orientation = carla.Rotation(yaw=wp_orientation)
+    
+    # Calculate the heading error
+    dx = wp_location.x - current_location.x
+    dy = wp_location.y - current_location.y
+    heading = np.arctan2(dy, dx)
+    heading_error = heading - np.radians(current_orientation)
+    heading_error = angle_mod(heading_error)
+    
+    # Calculate the cross track error
+    front_axle = 2.0
+    rear_axle = 0.0
+    cross_track_error = np.sin(heading) * (current_location.x - wp_location.x) - np.cos(heading) * (current_location.y - wp_location.y)
+    
+    # Calculate the steering angle
+    k_steer = 0.3
+    steer_abs = min(abs(k_steer * heading_error + np.arctan2(2.0 * front_axle * cross_track_error, 10.0 * current_speed)), 0.8)
+    sign_steer = np.sign(heading_error)
+    control.steer = sign_steer * steer_abs
+    
+    # Calculate the speed error
+    k_speed = 0.5
+    speed_error = wp[3] - current_speed
+    control.throttle = min(k_speed * speed_error, 0.8)
     
     return control

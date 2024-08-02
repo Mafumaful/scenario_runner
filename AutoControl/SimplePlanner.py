@@ -698,7 +698,7 @@ class SimplePlanner(object):
         # this is for the visualization of the route
         world.target_route = self.target_route
         # local planner
-        self.lp = FrenetOptimalPlanner(self.csp_target)
+        self.lp = FrenetOptimalPlanner(world.player, self.csp_target)
 
     def parse_global_routes(self, args):
         # get the xml file
@@ -754,7 +754,7 @@ class SimplePlanner(object):
         list_x = self.target_route[:,0].tolist()
         list_y = self.target_route[:,1].tolist()
         
-        self.csp_target = calc_spline_course(list_x, list_y, 0.1)
+        _,_,_,_,self.csp_target = calc_spline_course(list_x, list_y, 0.1)
             
     def update_local_planner(self):
         '''
@@ -767,8 +767,6 @@ class SimplePlanner(object):
         output of the local planner:
             trajectory of the ego vehicle
         '''
-        if self.predicted_trajectories is None:
-            return
         
         # initialize the local planner
         local_planner_route = {
@@ -844,7 +842,8 @@ class SimplePlanner(object):
         world.planner_route = self.update_local_planner()
                 
         # controller update 
-        self.control = StanleyController(world.planner_route["planner route"], world.player.get_transform())
+        speed_abs = world.player.get_velocity().x**2 + world.player.get_velocity().y**2 + world.player.get_velocity().z**2
+        self.control = StanleyController(world.planner_route["planner route"], world.player.get_transform(), speed_abs)
         
         # judge whether the vehicle has reached the destination
         target = carla.Location()

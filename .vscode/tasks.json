@@ -7,6 +7,7 @@
       "label": "launch Carla Server",
       "type": "shell",
       "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen",
+      // "args": ["-quality-level=Low"],
       "problemMatcher": []
     },
     {
@@ -32,7 +33,12 @@
       "label": "Run SignalizedJunctionLeftTurn",
       "type": "shell",
       "command": "${workspaceFolder}/scenario_runner.py",
-      "args": ["--scenario", "SignalizedJunctionLeftTurn_1", "--reloadWorld"],
+      "args": [
+        "--scenario",
+        "SignalizedJunctionLeftTurn_1",
+        "--reloadWorld",
+        "--sync"
+      ],
       "problemMatcher": []
     },
     {
