@@ -108,44 +108,28 @@ def StanleyController(local_route, current_state, current_speed):
     
     current_location = current_state.location
     current_orientation = current_state.rotation.yaw
+    print(f"current location: {current_location}, current orientation: {current_orientation}")
     
-    # Find the nearest waypoint
-    min_dist = float('inf')
-    index_l, index_r = 0, len(local_route)-1
+    L = 2.9 # length of the vehicle
     
-    for i in range(len(local_route)):
-        dist = np.sqrt((current_location.x - local_route[i][0])**2 + (current_location.y - local_route[i][1])**2)
-        if dist < min_dist:
-            min_dist = dist
-            index_l = i
-            
-    # Find the nearest waypoint in the forward direction
-    wp = local_route[index_l]
-    wp_orientation = wp[2]
-    wp_location = carla.Location(x=wp[0], y=wp[1], z=0.0)
-    wp_orientation = carla.Rotation(yaw=wp_orientation)
+    # calculate the next position
+    fx = current_location.x + L * np.cos(np.deg2rad(current_orientation))
+    fy = current_location.y + L * np.sin(np.deg2rad(current_orientation))
     
-    # Calculate the heading error
-    dx = wp_location.x - current_location.x
-    dy = wp_location.y - current_location.y
-    heading = np.arctan2(dy, dx)
-    heading_error = heading - np.radians(current_orientation)
-    heading_error = angle_mod(heading_error)
     
-    # Calculate the cross track error
-    front_axle = 2.0
-    rear_axle = 0.0
-    cross_track_error = np.sin(heading) * (current_location.x - wp_location.x) - np.cos(heading) * (current_location.y - wp_location.y)
+    # search the nearest point
+    index_nearest = 0
     
-    # Calculate the steering angle
-    k_steer = 0.3
-    steer_abs = min(abs(k_steer * heading_error + np.arctan2(2.0 * front_axle * cross_track_error, 10.0 * current_speed)), 0.8)
-    sign_steer = np.sign(heading_error)
-    control.steer = sign_steer * steer_abs
+    # project RMS error onto the front axle vector
+    front_axle_vector = [-np.cos(np.deg2rad(current_orientation)), -np.sin(np.deg2rad(current_orientation))]
+    error_front_axle = np.dot([local_route[index_nearest][0], local_route[index_nearest][1]], front_axle_vector)
     
-    # Calculate the speed error
-    k_speed = 0.5
-    speed_error = wp[3] - current_speed
-    control.throttle = min(k_speed * speed_error, 0.8)
+    # stanley control
+    k = 0.5
+    k_throttle = 0.3
+    control.steer = np.arctan2(2.0 * L * error_front_axle, k * current_speed)/5 # steering angle
+    control.throttle = max(k_throttle*(local_route[index_nearest][4] - current_speed), 0.4)# throttle
     
+    print(f"current speed: {current_speed}, target speed: {local_route[index_nearest][4]}, steer: {control.steer}, throttle: {control.throttle}")
+
     return control
