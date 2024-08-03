@@ -96,6 +96,30 @@ class FrenetPath:
         self.v = []
         
 def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
+    """
+    fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
+    
+    Params
+    ------
+    
+    c_speed: float
+        current speed [m/s]
+    c_accel: float
+        current acceleration [m/s^2]
+    c_d: float
+        current lateral position [m]
+    c_d_d: float
+        current lateral speed [m/s]
+    c_d_dd: float
+        current lateral acceleration [m/s^2]
+    s0: float
+        current longitudinal position [m]
+        
+    Returns
+    -------
+    fplist_init: list
+        a list of frenet paths
+    """
     frenet_paths = []
 
     # generate path to each offset goal
@@ -265,6 +289,17 @@ def simple_planner(ego_vehicle, global_path, obs_predicted_path):
 
 def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     '''
+    temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(
+        self.csp, 
+        self.current_s, 
+        self.current_speed, 
+        self.current_accel, 
+        self.current_d, 
+        self.current_d_d, 
+        self.current_d_dd, 
+        obs_predicted_path
+        )
+    
     Params
     ------
     csp: cubic spline
