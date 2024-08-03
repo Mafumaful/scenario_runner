@@ -348,7 +348,7 @@ class FrenetOptimalPlanner(object):
         # update the current state of the vehicle    
         velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
         location = np.array([ego_vehicle.get_location().x, ego_vehicle.get_location().y])
-        print(location)
+        # print(location)
         
         # calculate the current speed and acceleration
         self.current_speed = np.hypot(velocity[0], velocity[1])
@@ -493,5 +493,7 @@ class FrenetOptimalPlanner(object):
         choosed_route[:, 1] = np.array(target.y)
         choosed_route[:, 3] = np.array(target.yaw)
         choosed_route[:, 4] = np.array(target.v)
+        
+        print("the first element of the choosed route:", choosed_route[0])
         
         return candidate_routes, choosed_route

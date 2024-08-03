@@ -133,7 +133,7 @@ def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=0.8):
     # Calculate throttle (simple proportional controller)
     # target_speed = closest_point[3]
     target_speed = 2.0  # Constant speed for now
-    print(f"Target Speed: {target_speed}, Current Speed: {current_speed}")
+    # print(f"Target Speed: {target_speed}, Current Speed: {current_speed}")
     throttle = Kp * (target_speed - current_speed)
     throttle = np.clip(throttle, 0.0, 1.0)
     
@@ -143,6 +143,6 @@ def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=0.8):
     control.throttle = float(throttle)
     control.throttle = 0.4
     control.brake = 0.0  
-    print(f"Steering: {control.steer}, Throttle: {control.throttle}")
+    # print(f"Steering: {control.steer}, Throttle: {control.throttle}")
     
     return control
