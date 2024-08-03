@@ -926,7 +926,8 @@ if __name__ == '__main__':
     argparser.add_argument(
         '--scenario_name',
         metavar='sn',
-        default='SingalizedJunctionLeftTurn_1',
+        # default='SingalizedJunctionLeftTurn_1',
+        default='FreeRide1',
         help='The scenario name of the vehicle')
     argparser.add_argument(
         '-p', '--port',

@@ -7,7 +7,6 @@
       "label": "launch Carla Server",
       "type": "shell",
       "command": "cd $CARLA_ROOT && ./CarlaUE4.sh --RenderOffScreen",
-      // "args": ["-quality-level=Low"],
       "problemMatcher": []
     },
     {
@@ -21,7 +20,8 @@
         "--sync",
         "--timeout",
         "60"
-      ]
+      ],
+      "problemMatcher": []
     },
     {
       "label": "Run Following Leading Vehicle 1",

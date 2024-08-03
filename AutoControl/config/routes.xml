@@ -5,10 +5,10 @@
             <end x="-73.713852" y="109.237030" z="0.250247" />
         </waypoints>
     </route>
-    <route id="scenario2">
+    <route id="FreeRide1">
         <waypoints>
-            <start x="-133.699997" y="137.399994" z="0.033768" />
-            <end x="-73.713852" y="109.237030" z="0.250247" />
+            <start x="305.9" y="129.1" z="0.033768" />
+            <end x="88.7" y="173.3" z="0.250247" />
         </waypoints>
     </route>
 </routes>

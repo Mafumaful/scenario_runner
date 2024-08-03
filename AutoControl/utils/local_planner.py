@@ -348,6 +348,7 @@ class FrenetOptimalPlanner(object):
         # update the current state of the vehicle    
         velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
         location = np.array([ego_vehicle.get_location().x, ego_vehicle.get_location().y])
+        print(location)
         
         # calculate the current speed and acceleration
         self.current_speed = np.hypot(velocity[0], velocity[1])

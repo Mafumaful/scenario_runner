@@ -81,7 +81,7 @@ def normalize_angle(angle):
     """
     return angle_mod(angle)
 
-def StanleyController(local_route, current_state, current_speed):
+def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=0.8):
     """
     Stanley Controller
     
@@ -90,46 +90,59 @@ def StanleyController(local_route, current_state, current_speed):
     local_route: np.array()
         the route calculated by the local planner from start to goal, which contains the waypoints and the target speed
         [[x, y, yaw, v], ...]
-    current_state: carla.transform()
+    current_state: carla.Transform
         current state of the vehicle, which contains the location and orientation of the vehicle
-        
+    current_speed: float
+        current speed of the vehicle (m/s)
+    k: float
+        control gain for the cross-track error
+    Kp: float
+        proportional control gain for the speed
+
     Returns
     -------
-    control: carla.VehicleControl()
+    control: carla.VehicleControl
         control signal for the vehicle
     """
     control = carla.VehicleControl()
-
-    if len(local_route) == 0:
-        control.throttle = 0.0
-        control.brake = 1.0
-        control.steer = 0.0
-        return control
     
-    current_location = current_state.location
-    current_orientation = current_state.rotation.yaw
-    print(f"current location: {current_location}, current orientation: {current_orientation}")
+    # Extract current position and orientation
+    x = current_state.location.x
+    y = current_state.location.y
+    yaw = np.deg2rad(current_state.rotation.yaw)
     
-    L = 2.9 # length of the vehicle
+    # Find the closest waypoint on the local route
+    distances = np.linalg.norm(local_route[:, :2] - np.array([x, y]), axis=1)
+    closest_index = np.argmin(distances)
+    closest_point = local_route[closest_index]
+    path_yaw = closest_point[2]
     
-    # calculate the next position
-    fx = current_location.x + L * np.cos(np.deg2rad(current_orientation))
-    fy = current_location.y + L * np.sin(np.deg2rad(current_orientation))
+    # Calculate cross-track error
+    dx = closest_point[0] - x
+    dy = closest_point[1] - y
+    cross_track_error = np.sin(path_yaw - np.arctan2(dy, dx)) * np.sqrt(dx**2 + dy**2)
     
+    # Calculate heading error
+    heading_error = path_yaw - yaw
+    heading_error = np.arctan2(np.sin(heading_error), np.cos(heading_error))  # Normalize angle
     
-    # search the nearest point
-    index_nearest = 0
+    # Stanley control law for steering
+    steering_angle = heading_error + np.arctan2(k * cross_track_error, current_speed)
+    steering_angle = np.clip(steering_angle, -1.0, 1.0)  # Assuming the steering angle range is [-1, 1]
     
-    # project RMS error onto the front axle vector
-    front_axle_vector = [-np.cos(np.deg2rad(current_orientation)), -np.sin(np.deg2rad(current_orientation))]
-    error_front_axle = np.dot([local_route[index_nearest][0], local_route[index_nearest][1]], front_axle_vector)
+    # Calculate throttle (simple proportional controller)
+    # target_speed = closest_point[3]
+    target_speed = 2.0  # Constant speed for now
+    print(f"Target Speed: {target_speed}, Current Speed: {current_speed}")
+    throttle = Kp * (target_speed - current_speed)
+    throttle = np.clip(throttle, 0.0, 1.0)
     
-    # stanley control
-    k = 0.5
-    k_throttle = 0.3
-    control.steer = np.arctan2(2.0 * L * error_front_axle, k * current_speed)/5 # steering angle
-    control.throttle = max(k_throttle*(local_route[index_nearest][4] - current_speed), 0.4)# throttle
+    # Set control signals
+    control.steer = float(steering_angle)
+    control.steer = 0.0
+    control.throttle = float(throttle)
+    control.throttle = 0.4
+    control.brake = 0.0  
+    print(f"Steering: {control.steer}, Throttle: {control.throttle}")
     
-    print(f"current speed: {current_speed}, target speed: {local_route[index_nearest][4]}, steer: {control.steer}, throttle: {control.throttle}")
-
     return control
