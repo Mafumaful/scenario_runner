@@ -320,6 +320,8 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
         [[x, y, z, yaw, v] ...] at the size of (N, 4)
     '''
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
+    x,y = csp.calc_position(s0)
+    print('x:', x, 'y:', y)
     fplist = calc_global_paths(fplist_init, csp)
     fplist = check_paths(fplist, ob)
     
