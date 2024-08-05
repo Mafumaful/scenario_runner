@@ -321,7 +321,7 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     '''
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
     x,y = csp.calc_position(s0)
-    print('x:', x, 'y:', y)
+    # print('x:', x, 'y:', y)
     fplist = calc_global_paths(fplist_init, csp)
     fplist = check_paths(fplist, ob)
     
@@ -354,13 +354,16 @@ class FrenetOptimalPlanner(object):
         self.current_speed = np.hypot(velocity[0], velocity[1])
         self.current_accel = 0.0
         
-        best_index = self.calc_best_index(location, self.csp)
+        print('location:', location)
+        best_index = 0
+        print("spline location:", self.csp.calc_position(self.csp.s[best_index]))
+        print("lenth of s:", len(self.csp.s))
         self.current_d= self.calc_distance(location, csp_target, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s] 
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
         self.current_s = self.csp.s[best_index] # current longitudinal position [m]
         
-    def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array) -> None:
+    def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array, rk) -> None:
         '''
         Params
         ------
@@ -392,6 +395,7 @@ class FrenetOptimalPlanner(object):
         self.current_accel = 0.0
         
         best_index = self.calc_best_index(location, self.csp)
+        # print("best index:", best_index)
         self.current_d = self.calc_distance(location, self.csp, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s]
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
@@ -429,10 +433,12 @@ class FrenetOptimalPlanner(object):
             index = (index_l + index_r) // 2
             x, y = csp.calc_position(csp.s[index])
             dist = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
+            dist_l = np.sqrt((location[0] - csp.calc_position(csp.s[index_l])[0])**2 + (location[1] - csp.calc_position(csp.s[index_l])[1])**2)
+            dist_r = np.sqrt((location[0] - csp.calc_position(csp.s[index_r])[0])**2 + (location[1] - csp.calc_position(csp.s[index_r])[1])**2)
             if dist < min_dist:
                 min_dist = dist
                 best_index = index
-            if x > location[0]:
+            if dist_l < dist_r:
                 index_r = index
             else:
                 index_l = index
@@ -530,7 +536,5 @@ class FrenetOptimalPlanner(object):
         choosed_route[:, 1] = np.array(target.y)
         choosed_route[:, 3] = np.array(target.yaw)
         choosed_route[:, 4] = np.array(target.v)
-        
-        print("the first element of the choosed route:", choosed_route[0])
         
         return candidate_routes, choosed_route

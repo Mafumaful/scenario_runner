@@ -81,7 +81,7 @@ def normalize_angle(angle):
     """
     return angle_mod(angle)
 
-def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=0.8):
+def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=1.0):
     """
     Stanley Controller
     
@@ -132,16 +132,17 @@ def StanleyController(local_route, current_state, current_speed, k=1.0, Kp=0.8):
     
     # Calculate throttle (simple proportional controller)
     # target_speed = closest_point[3]
-    target_speed = 2.0  # Constant speed for now
+    target_speed = 15.0  # Constant speed for now
     # print(f"Target Speed: {target_speed}, Current Speed: {current_speed}")
     throttle = Kp * (target_speed - current_speed)
     throttle = np.clip(throttle, 0.0, 1.0)
     
     # Set control signals
-    control.steer = float(steering_angle)
+    k_steer = 0.5
+    # control.steer = float(-steering_angle*k_steer)
     control.steer = 0.0
+    
     control.throttle = float(throttle)
-    control.throttle = 0.4
     control.brake = 0.0  
     # print(f"Steering: {control.steer}, Throttle: {control.throttle}")
     

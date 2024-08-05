@@ -693,6 +693,7 @@ class SimplePlanner(object):
         self.vehicle_agents = None
         self.predicted_trajectories = []
         self.csp_target = None # cubic spline planner target
+        self.rk = None # curvature
 
         self.parse_global_routes(args)
         # this is for the visualization of the route
@@ -754,7 +755,7 @@ class SimplePlanner(object):
         list_x = self.target_route[:,0].tolist()
         list_y = self.target_route[:,1].tolist()
         
-        _,_,_,_,self.csp_target = calc_spline_course(list_x, list_y, 0.1)
+        _,_,_,self.rk, self.csp_target = calc_spline_course(list_x, list_y, 0.1)
             
     def update_local_planner(self):
         '''
@@ -775,7 +776,7 @@ class SimplePlanner(object):
         }
         
         # candidate_routes, choosed_route = simple_planner(self.world.player, self.csp_target, self.predicted_trajectories)
-        candidate_routes, choosed_route = self.lp.update(self.world.player, self.predicted_trajectories)
+        candidate_routes, choosed_route = self.lp.update(self.world.player, self.predicted_trajectories, self.rk)
         
         local_planner_route["candidate routes"] = candidate_routes
         local_planner_route["planner route"] = choosed_route
