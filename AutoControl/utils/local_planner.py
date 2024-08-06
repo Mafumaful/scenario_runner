@@ -2,6 +2,7 @@ import numpy as np
 import math
 import sys, os
 import carla
+import bisect
 
 # add the $SCEANRIO_RUNNER_ROOT to the python path
 SCENARI_RUNNER_ROOT = os.environ.get('SCENARIO_RUNNER_ROOT', None)
@@ -32,6 +33,45 @@ K_D = 1.0  # weight of square of d
 
 K_LAT = 1.0  # weight of lateral direction
 K_LON = 1.0  # weight of longitudinal direction
+
+def search_index(x, x_list):
+    """
+    search data segment index
+
+    Params
+    ------
+    x: float
+        the value to search
+    x_list: list
+        the list of values, accending order
+
+    Returns
+    -------
+    i: int
+        the index closest to the value
+    """
+    
+    # Binary search initialization
+    left, right = 0, len(x_list) - 1
+
+    # Binary search loop
+    while left < right:
+        mid = (left + right) // 2
+        if x_list[mid] < x:
+            left = mid + 1
+        else:
+            right = mid
+
+    # Determine the closest index
+    if left == 0:
+        return left
+    if left == len(x_list):
+        return left - 1
+
+    if abs(x - x_list[left - 1]) <= abs(x - x_list[left]):
+        return left - 1
+    else:
+        return left
 
 class QuarticPolynomial:
 
@@ -170,10 +210,14 @@ def calc_global_paths(fplist, csp):
         
         # calc global positions
         for i in range(len(fp.s)):
-            ix, iy = csp.calc_position(fp.s[i])
+            index = search_index(fp.s[i], csp["s"])
+            ix, iy = csp["x"][index], csp["y"][index]
+            if i == 0:
+                print(f"global path location:{ix:.2f}, {iy:.2f}")
+            
             if ix is None:
                 break
-            iyaw = csp.calc_yaw(fp.s[i]) # csp is the cubic spline path
+            iyaw = csp["yaw"][index] # csp is the cubic spline path
             di = fp.d[i]
             fx = ix + di * math.cos(iyaw + math.pi / 2.0)
             fy = iy + di * math.sin(iyaw + math.pi / 2.0)
@@ -287,7 +331,7 @@ def simple_planner(ego_vehicle, global_path, obs_predicted_path):
     
     return candidate_routes, choosed_route
 
-def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
+def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     '''
     temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(
         self.csp, 
@@ -302,8 +346,12 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     
     Params
     ------
-    csp: cubic spline
-        the target path
+    csp: dictionary
+        the target path (spline)
+        ["x"]-> list(float) : x position of the path
+        ["y"]-> list(float) : y position of the path
+        ["yaw"]-> list(float) : yaw of the path
+        ["s"]-> list(float) : s position of the path
     s0: float
         the initial position
     c_speed: float
@@ -319,9 +367,10 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     choosed_route:
         [[x, y, z, yaw, v] ...] at the size of (N, 4)
     '''
+    s0 = csp["s"][index]
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
-    x,y = csp.calc_position(s0)
-    # print('x:', x, 'y:', y)
+    x,y = csp["x"][index], csp["y"][index]
+    print(f"optimal planning spline location:{x:.2f}, {y:.2f}")
     fplist = calc_global_paths(fplist_init, csp)
     fplist = check_paths(fplist, ob)
     
@@ -344,7 +393,7 @@ def frenet_optimal_planning(csp, s0, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     return fplist, choosed_route
 
 class FrenetOptimalPlanner(object):
-    def __init__(self, ego_vehicle: carla.Actor, csp_target: CubicSpline2D) -> None:        
+    def __init__(self, ego_vehicle: carla.Actor, csp_target) -> None:        
         self.csp = csp_target # the target path (spline)
         
         velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
@@ -356,12 +405,12 @@ class FrenetOptimalPlanner(object):
         
         print('location:', location)
         best_index = 0
-        print("spline location:", self.csp.calc_position(self.csp.s[best_index]))
-        print("lenth of s:", len(self.csp.s))
+        print("spline location:", self.csp["x"][best_index], self.csp["y"][best_index])
+        print("lenth of s:", len(self.csp["s"]))
         self.current_d= self.calc_distance(location, csp_target, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s] 
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
-        self.current_s = self.csp.s[best_index] # current longitudinal position [m]
+        self.current_s = self.csp["s"][best_index] # current longitudinal position [m]
         
     def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array, rk) -> None:
         '''
@@ -395,14 +444,17 @@ class FrenetOptimalPlanner(object):
         self.current_accel = 0.0
         
         best_index = self.calc_best_index(location, self.csp)
-        # print("best index:", best_index)
+        x = self.csp["x"][best_index]
+        y = self.csp["y"][best_index]
+        print(f"\r\n>>>>>>>>>>>>")
+        print(f"spline location:{x:.2f}, {y:.2f}")
+        print(f"location:{location[0]:.2f}, {location[1]:.2f}")
         self.current_d = self.calc_distance(location, self.csp, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s]
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
-        self.current_s = self.csp.s[best_index] # current longitudinal position [m]
         
         # update the candidate routes and the choosed route
-        temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(self.csp, self.current_s, self.current_speed, self.current_accel, self.current_d, self.current_d_d, self.current_d_dd, obs_predicted_path)
+        temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(self.csp, best_index, self.current_speed, self.current_accel, self.current_d, self.current_d_d, self.current_d_dd, obs_predicted_path)
         # print('candidate_routes:', candidate_routes)
         # print('choosed_route:', choosed_route)
         
@@ -415,34 +467,51 @@ class FrenetOptimalPlanner(object):
         ------
         location: np.array()
             the location of the vehicle
-        csp: cubic spline
-            the target path
-            
+        csp: dictionary
+            ["x"]-> list(float) : x position of the path
+            ["y"]-> list(float) : y position of the path
+            ["yaw"]-> list(float) : yaw of the path
+            ["s"]-> list(float) : s position of the path
+
         Returns
         -------
         best_index: int
-            the index of the best path
+            the best index of the path
         '''
-        # calculate the best index
+        # Initialize minimum distance and best index
         min_dist = float('inf')
         best_index = 0
-        
-        # binary search
-        index_l, index_r = 0, len(csp.s) - 1
+
+        # Binary search
+        index_l, index_r = 0, len(csp["s"]) - 1
         while index_r - index_l > 1:
             index = (index_l + index_r) // 2
-            x, y = csp.calc_position(csp.s[index])
-            dist = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
-            dist_l = np.sqrt((location[0] - csp.calc_position(csp.s[index_l])[0])**2 + (location[1] - csp.calc_position(csp.s[index_l])[1])**2)
-            dist_r = np.sqrt((location[0] - csp.calc_position(csp.s[index_r])[0])**2 + (location[1] - csp.calc_position(csp.s[index_r])[1])**2)
+            x, y = csp["x"][index], csp["y"][index]
+            dist = np.hypot(location[0] - x, location[1] - y)
+
+            # Check the distance at index
             if dist < min_dist:
                 min_dist = dist
                 best_index = index
+
+            # Determine which side to continue searching
+            dist_l = np.hypot(location[0] - csp["x"][index_l], location[1] - csp["y"][index_l])
+            dist_r = np.hypot(location[0] - csp["x"][index_r], location[1] - csp["y"][index_r])
+
             if dist_l < dist_r:
                 index_r = index
             else:
                 index_l = index
-        
+
+        # Compare the final two points left
+        if index_r - index_l == 1:
+            dist_l = np.hypot(location[0] - csp["x"][index_l], location[1] - csp["y"][index_l])
+            dist_r = np.hypot(location[0] - csp["x"][index_r], location[1] - csp["y"][index_r])
+            if dist_r < dist_l:
+                best_index = index_r
+            else:
+                best_index = index_l
+
         return best_index
     
     @staticmethod
@@ -452,53 +521,22 @@ class FrenetOptimalPlanner(object):
         ------
         location: np.array()
             the location of the vehicle
-        csp: cubic spline
-            the target path
+        csp: dictioanry
+            ["x"]-> list(float) : x position of the path
+            ["y"]-> list(float) : y position of the path
+            ["yaw"]-> list(float) : yaw of the path
+            ["s"]-> list(float) : s position of the path
             
         Returns
         -------
         distance: float
             the distance between the vehicle and the target path
         '''
-        x, y = csp.calc_position(csp.s[index])
-        distance = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
+        x, y = csp["x"][index], csp["y"][index]
+        distance = np.hypot(location[0] - x, location[1] - y)
         
         return distance
         
-    
-    @staticmethod
-    def calc_s(location, csp):
-        '''
-        Params
-        ------
-        location: np.array()
-            the location of the vehicle
-        csp: cubic spline
-            the target path
-            
-        Returns
-        -------
-        s: float
-            the longitudinal position of the vehicle
-        '''
-        # calculate the s value given the location
-        min_dist = float('inf')
-        
-        # binary search
-        sl, sr = 0, csp.s[-1]
-        while sr - sl > 0.1:
-            s = (sl + sr) / 2
-            x, y = csp.calc_position(s)
-            dist = np.sqrt((location[0] - x)**2 + (location[1] - y)**2)
-            if dist < min_dist:
-                min_dist = dist
-                min_index = s
-            if x > location[0]:
-                sr = s
-            else:
-                sl = s
-                
-        return 
     
     @staticmethod
     def convert_format(candidates, target):

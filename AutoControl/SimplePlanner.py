@@ -30,6 +30,7 @@ import math
 import weakref
 import numpy as np
 import pygame
+import bisect
 
 try:
     import pygame
@@ -692,8 +693,7 @@ class SimplePlanner(object):
         # initialize the other vehicle agents
         self.vehicle_agents = None
         self.predicted_trajectories = []
-        self.csp_target = None # cubic spline planner target
-        self.rk = None # curvature
+        self.csp_target = {} # cubic spline planner target
 
         self.parse_global_routes(args)
         # this is for the visualization of the route
@@ -755,7 +755,16 @@ class SimplePlanner(object):
         list_x = self.target_route[:,0].tolist()
         list_y = self.target_route[:,1].tolist()
         
-        _,_,_,self.rk, self.csp_target = calc_spline_course(list_x, list_y, 0.1)
+        t_x, t_y, t_yaw, t_s, _= calc_spline_course(list_x, list_y, 0.01)
+        
+        self.csp_target["x"] = t_x
+        self.csp_target["y"] = t_y
+        self.csp_target["yaw"] = t_yaw
+        self.csp_target["s"] = t_s
+        
+        # import matplotlib.pyplot as plt
+        # plt.plot(list_x, list_y, "xb")
+        # plt.show()
             
     def update_local_planner(self):
         '''
@@ -776,7 +785,7 @@ class SimplePlanner(object):
         }
         
         # candidate_routes, choosed_route = simple_planner(self.world.player, self.csp_target, self.predicted_trajectories)
-        candidate_routes, choosed_route = self.lp.update(self.world.player, self.predicted_trajectories, self.rk)
+        candidate_routes, choosed_route = self.lp.update(self.world.player, self.predicted_trajectories, self.csp_target)
         
         local_planner_route["candidate routes"] = candidate_routes
         local_planner_route["planner route"] = choosed_route
