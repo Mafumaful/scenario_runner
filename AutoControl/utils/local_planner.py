@@ -205,15 +205,13 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
 
     return frenet_paths
 
-def calc_global_paths(fplist, csp):
+def calc_global_paths(fplist, csp, index):
     for fp in fplist:
-        
+        index_temp = index
         # calc global positions
         for i in range(len(fp.s)):
-            index = search_index(fp.s[i], csp["s"])
-            ix, iy = csp["x"][index], csp["y"][index]
-            if i == 0:
-                print(f"global path location:{ix:.2f}, {iy:.2f}")
+            index_temp = index_temp+i*10 if index_temp+i*10 < len(csp["s"]) else len(csp["s"])-1
+            ix, iy = csp["x"][index_temp], csp["y"][index_temp]
             
             if ix is None:
                 break
@@ -371,7 +369,7 @@ def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
     x,y = csp["x"][index], csp["y"][index]
     print(f"optimal planning spline location:{x:.2f}, {y:.2f}")
-    fplist = calc_global_paths(fplist_init, csp)
+    fplist = calc_global_paths(fplist_init, csp, index)
     fplist = check_paths(fplist, ob)
     
     if len(fplist) == 0:
