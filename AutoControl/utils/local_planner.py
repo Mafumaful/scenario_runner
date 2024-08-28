@@ -206,11 +206,12 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
     return frenet_paths
 
 def calc_global_paths(fplist, csp, index):
+    print_flag = True
     for fp in fplist:
         index_temp = index
         # calc global positions
         for i in range(len(fp.s)):
-            index_temp = index_temp+i*10 if index_temp+i*10 < len(csp["s"]) else len(csp["s"])-1
+            index_temp = index_temp+i*1 if index_temp+i*1 < len(csp["s"]) else len(csp["s"])-1
             ix, iy = csp["x"][index_temp], csp["y"][index_temp]
             
             if ix is None:
@@ -221,6 +222,10 @@ def calc_global_paths(fplist, csp, index):
             fy = iy + di * math.sin(iyaw + math.pi / 2.0)
             fp.x.append(fx)
             fp.y.append(fy)
+            
+            if print_flag:
+                print("iy: ", iy , "\r\ndy: ", di * math.sin(iyaw + math.pi / 2.0))
+                print_flag = False
             
         # calc yaw and ds
         for i in range(len(fp.x) - 1):
@@ -250,13 +255,10 @@ def check_collision(fp, ob):
 
 def check_paths(fplist, obs):
     ok_index = []
-    # print('check_paths')
-    # print("obs:", obs)
     for i, _ in enumerate(fplist):
         obs_check_pass = True
         if obs is not None:
             for ob in obs:
-                # print('ob:', ob)
                 if check_collision(fplist[i], ob):
                     obs_check_pass = False
                     continue
@@ -368,9 +370,14 @@ def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob
     s0 = csp["s"][index]
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
     x,y = csp["x"][index], csp["y"][index]
-    print(f"optimal planning spline location:{x:.2f}, {y:.2f}")
+    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    print(f"1 optimal planning spline location:{x:.2f}, {y:.2f}")
     fplist = calc_global_paths(fplist_init, csp, index)
+    x,y = fplist[0].x[0], fplist[0].y[0]
+    print(f"2 optimal planning global location:{x:.2f}, {y:.2f}")
     fplist = check_paths(fplist, ob)
+    x,y = fplist[0].x[0], fplist[0].y[0]
+    print(f"3 optimal planning global location:{x:.2f}, {y:.2f}")
     
     if len(fplist) == 0:
         fplist = fplist_init # if no path is found, use the initial path
@@ -410,6 +417,8 @@ class FrenetOptimalPlanner(object):
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
         self.current_s = self.csp["s"][best_index] # current longitudinal position [m]
         
+        self.debug_prev_index = 0
+        
     def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array, rk) -> None:
         '''
         Params
@@ -435,7 +444,6 @@ class FrenetOptimalPlanner(object):
         # update the current state of the vehicle    
         velocity = np.array([ego_vehicle.get_velocity().x, ego_vehicle.get_velocity().y])
         location = np.array([ego_vehicle.get_location().x, ego_vehicle.get_location().y])
-        # print(location)
         
         # calculate the current speed and acceleration
         self.current_speed = np.hypot(velocity[0], velocity[1])
@@ -444,17 +452,18 @@ class FrenetOptimalPlanner(object):
         best_index = self.calc_best_index(location, self.csp)
         x = self.csp["x"][best_index]
         y = self.csp["y"][best_index]
-        print(f"\r\n>>>>>>>>>>>>")
-        print(f"spline location:{x:.2f}, {y:.2f}")
-        print(f"location:{location[0]:.2f}, {location[1]:.2f}")
+        # print("best index:", best_index)
+        self.debug_prev_index = best_index
+        # print("prev index:", self.debug_prev_index)
+        # print(f"\r\n>>>>>>>>>>>>")
+        # print(f"spline location:{x:.2f}, {y:.2f}")
+        # print(f"location:{location[0]:.2f}, {location[1]:.2f}")
         self.current_d = self.calc_distance(location, self.csp, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s]
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
         
         # update the candidate routes and the choosed route
         temp_candidate_routes, temp_choosed_route = frenet_optimal_planning(self.csp, best_index, self.current_speed, self.current_accel, self.current_d, self.current_d_d, self.current_d_dd, obs_predicted_path)
-        # print('candidate_routes:', candidate_routes)
-        # print('choosed_route:', choosed_route)
         
         return self.convert_format(temp_candidate_routes, temp_choosed_route)
     

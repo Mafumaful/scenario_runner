@@ -755,7 +755,7 @@ class SimplePlanner(object):
         list_x = self.target_route[:,0].tolist()
         list_y = self.target_route[:,1].tolist()
         
-        t_x, t_y, t_yaw, t_s, _= calc_spline_course(list_x, list_y, 0.01)
+        t_x, t_y, t_yaw, t_s, _= calc_spline_course(list_x, list_y, 0.1)
         
         self.csp_target["x"] = t_x
         self.csp_target["y"] = t_y
