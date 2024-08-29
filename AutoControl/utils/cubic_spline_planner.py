@@ -267,9 +267,9 @@ class CubicSpline2D:
     
 def calc_spline_course(x, y, ds=0.1):
     sp  = CubicSpline2D(x, y)
-    print("sp.s[-1]: ", sp.s[-1])
+    # print("sp.s[-1]: ", sp.s[-1])
     s = np.arange(0, sp.s[-1], ds)
-    print("lenth of s: ", len(s))
+    # print("lenth of s: ", len(s))
     
     rx, ry, ryaw, rk = [], [], [], []
     for i_s in s:

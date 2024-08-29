@@ -369,14 +369,14 @@ def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob
     '''
     s0 = csp["s"][index]
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
-    x,y = csp["x"][index], csp["y"][index]
+    # x,y = csp["x"][index], csp["y"][index]
     # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     # print(f"1 optimal planning spline location:{x:.2f}, {y:.2f}")
     fplist = calc_global_paths(fplist_init, csp, index)
-    x,y = fplist[0].x[0], fplist[0].y[0]
+    # x,y = fplist[0].x[0], fplist[0].y[0]
     # print(f"2 optimal planning global location:{x:.2f}, {y:.2f}")
     fplist = check_paths(fplist, ob)
-    x,y = fplist[0].x[0], fplist[0].y[0]
+    # x,y = fplist[0].x[0], fplist[0].y[0]
     # print(f"3 optimal planning global location:{x:.2f}, {y:.2f}")
     
     if len(fplist) == 0:
@@ -408,11 +408,11 @@ class FrenetOptimalPlanner(object):
         self.current_speed = np.hypot(velocity[0], velocity[1])
         self.current_accel = 0.0
         
-        print('location:', location)
+        # print('location:', location)
         best_index = 0
-        print("spline location:", self.csp["x"][best_index], self.csp["y"][best_index])
-        print("lenth of s:", len(self.csp["s"]))
-        self.current_d= self.calc_distance(location, csp_target, best_index) # current lateral position [m]
+        # print("spline location:", self.csp["x"][best_index], self.csp["y"][best_index])
+        # print("lenth of s:", len(self.csp["s"]))
+        self.current_d = self.calc_distance(location, csp_target, best_index) # current lateral position [m]
         self.current_d_d = 0.0 # current lateral speed [m/s] 
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
         self.current_s = self.csp["s"][best_index] # current longitudinal position [m]
