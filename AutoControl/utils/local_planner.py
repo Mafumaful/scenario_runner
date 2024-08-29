@@ -223,9 +223,9 @@ def calc_global_paths(fplist, csp, index):
             fp.x.append(fx)
             fp.y.append(fy)
             
-            if print_flag:
-                print("iy: ", iy , "\r\ndy: ", di * math.sin(iyaw + math.pi / 2.0))
-                print_flag = False
+            # if print_flag:
+            #     print("iy: ", iy , "\r\ndy: ", di * math.sin(iyaw + math.pi / 2.0))
+            #     print_flag = False
             
         # calc yaw and ds
         for i in range(len(fp.x) - 1):
@@ -370,14 +370,14 @@ def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob
     s0 = csp["s"][index]
     fplist_init = calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0)
     x,y = csp["x"][index], csp["y"][index]
-    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    print(f"1 optimal planning spline location:{x:.2f}, {y:.2f}")
+    # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    # print(f"1 optimal planning spline location:{x:.2f}, {y:.2f}")
     fplist = calc_global_paths(fplist_init, csp, index)
     x,y = fplist[0].x[0], fplist[0].y[0]
-    print(f"2 optimal planning global location:{x:.2f}, {y:.2f}")
+    # print(f"2 optimal planning global location:{x:.2f}, {y:.2f}")
     fplist = check_paths(fplist, ob)
     x,y = fplist[0].x[0], fplist[0].y[0]
-    print(f"3 optimal planning global location:{x:.2f}, {y:.2f}")
+    # print(f"3 optimal planning global location:{x:.2f}, {y:.2f}")
     
     if len(fplist) == 0:
         fplist = fplist_init # if no path is found, use the initial path
