@@ -472,8 +472,8 @@ class FrenetOptimalPlanner(object):
         '''
         Params
         ------
-        location: np.array()
-            the location of the vehicle
+        location: np.array
+            The location of the vehicle (x, y).
         csp: dictionary
             ["x"]-> list(float) : x position of the path
             ["y"]-> list(float) : y position of the path
@@ -483,41 +483,27 @@ class FrenetOptimalPlanner(object):
         Returns
         -------
         best_index: int
-            the best index of the path
+            The best index of the path closest to the vehicle location.
         '''
-        # Initialize minimum distance and best index
-        min_dist = float('inf')
-        best_index = 0
 
-        # Binary search
-        index_l, index_r = 0, len(csp["s"]) - 1
-        while index_r - index_l > 1:
-            index = (index_l + index_r) // 2
-            x, y = csp["x"][index], csp["y"][index]
-            dist = np.hypot(location[0] - x, location[1] - y)
+        path_x = csp["x"]
+        path_y = csp["y"]
 
-            # Check the distance at index
-            if dist < min_dist:
-                min_dist = dist
-                best_index = index
+        # Helper function to calculate squared distance (avoid sqrt for efficiency)
+        def squared_distance(i):
+            return (path_x[i] - location[0])**2 + (path_y[i] - location[1])**2
 
-            # Determine which side to continue searching
-            dist_l = np.hypot(location[0] - csp["x"][index_l], location[1] - csp["y"][index_l])
-            dist_r = np.hypot(location[0] - csp["x"][index_r], location[1] - csp["y"][index_r])
-
-            if dist_l < dist_r:
-                index_r = index
+        # Step 1: Binary search on a custom distance metric
+        low, high = 0, len(path_x) - 1
+        while low < high:
+            mid = (low + high) // 2
+            if squared_distance(mid) < squared_distance(mid + 1):
+                high = mid
             else:
-                index_l = index
+                low = mid + 1
 
-        # Compare the final two points left
-        if index_r - index_l == 1:
-            dist_l = np.hypot(location[0] - csp["x"][index_l], location[1] - csp["y"][index_l])
-            dist_r = np.hypot(location[0] - csp["x"][index_r], location[1] - csp["y"][index_r])
-            if dist_r < dist_l:
-                best_index = index_r
-            else:
-                best_index = index_l
+        # Step 2: Fine-tune by checking surrounding points
+        best_index = low
 
         return best_index
     
