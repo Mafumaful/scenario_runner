@@ -206,7 +206,7 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
     return frenet_paths
 
 def calc_global_paths(fplist, csp, index):
-    print_flag = True
+    # print_flag = True
     for fp in fplist:
         index_temp = index
         # calc global positions
@@ -276,60 +276,60 @@ def check_paths(fplist, obs):
     
     return [fplist[i] for i in ok_index]
 
-def simple_planner(ego_vehicle, global_path, obs_predicted_path):
-    '''
-    Params
-    ------
-    ego_vehicle: carla.Actor()
-        the ego vehicle
+# def simple_planner(ego_vehicle, global_path, obs_predicted_path):
+#     '''
+#     Params
+#     ------
+#     ego_vehicle: carla.Actor()
+#         the ego vehicle
     
-    global_path: cubic spline
-        the path of the vehicle, which contains the position, orientation, velocity, etc.
+#     global_path: cubic spline
+#         the path of the vehicle, which contains the position, orientation, velocity, etc.
         
-    Returns
-    -------
-    candidate_routes: list
-        a list of candidate routes
-        [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
-    choosed_route: list
-        the choosed route
-        [[x, y, z, yaw, v] ...] at the size of (N, 4)
-    '''
-    candidate_routes = []
-    choosed_route = None
+#     Returns
+#     -------
+#     candidate_routes: list
+#         a list of candidate routes
+#         [[x, y, z, yaw, v] ...] at the size of (N, 4) -> it's a list of np.array()
+#     choosed_route: list
+#         the choosed route
+#         [[x, y, z, yaw, v] ...] at the size of (N, 4)
+#     '''
+#     candidate_routes = []
+#     choosed_route = None
     
-    tranform = ego_vehicle.get_transform()
-    velocity = ego_vehicle.get_velocity()
+#     tranform = ego_vehicle.get_transform()
+#     velocity = ego_vehicle.get_velocity()
     
-    # get the tangent of the vector of velocity
-    yaw = np.arctan2(velocity.y, velocity.x)
-    yaws_candidates = [yaw+i*np.pi/10 for i in range(-3, 4)]
-    vec_velocity_candidates = [np.array([np.cos(yaw), np.sin(yaw)]) for yaw in yaws_candidates]
+#     # get the tangent of the vector of velocity
+#     yaw = np.arctan2(velocity.y, velocity.x)
+#     yaws_candidates = [yaw+i*np.pi/10 for i in range(-3, 4)]
+#     vec_velocity_candidates = [np.array([np.cos(yaw), np.sin(yaw)]) for yaw in yaws_candidates]
     
-    dt = 0.2
-    velocity_scale = 60.0
-    # predict
-    for vec_velocity in vec_velocity_candidates:
-        candidate = np.zeros((100, 5))
-        x = tranform.location.x
-        y = tranform.location.y
-        z = tranform.location.z
-        for i in range(100):
-            x += vec_velocity[0] * velocity_scale * dt
-            y += vec_velocity[1] * velocity_scale * dt
-            z = tranform.location.z 
-            yaw = np.arctan2(vec_velocity[1], vec_velocity[0])
-            v = np.sqrt(vec_velocity[0]**2 + vec_velocity[1]**2)
-            candidate[i] = [x, y, z, yaw, v]
-        candidate_routes.append(candidate)
+#     dt = 0.2
+#     velocity_scale = 60.0
+#     # predict
+#     for vec_velocity in vec_velocity_candidates:
+#         candidate = np.zeros((100, 5))
+#         x = tranform.location.x
+#         y = tranform.location.y
+#         z = tranform.location.z
+#         for i in range(100):
+#             x += vec_velocity[0] * velocity_scale * dt
+#             y += vec_velocity[1] * velocity_scale * dt
+#             z = tranform.location.z 
+#             yaw = np.arctan2(vec_velocity[1], vec_velocity[0])
+#             v = np.sqrt(vec_velocity[0]**2 + vec_velocity[1]**2)
+#             candidate[i] = [x, y, z, yaw, v]
+#         candidate_routes.append(candidate)
     
-    choosed_index = 3
-    # choose the best route
-    choosed_route = candidate_routes[choosed_index]
-    # delete from the candidate list
-    del candidate_routes[choosed_index]
+#     choosed_index = 3
+#     # choose the best route
+#     choosed_route = candidate_routes[choosed_index]
+#     # delete from the candidate list
+#     del candidate_routes[choosed_index]
     
-    return candidate_routes, choosed_route
+#     return candidate_routes, choosed_route
 
 def frenet_optimal_planning(csp, index, c_speed, c_accel, c_d, c_d_d, c_d_dd, ob):
     '''
@@ -417,8 +417,6 @@ class FrenetOptimalPlanner(object):
         self.current_d_dd = 0.0 # current lateral acceleration [m/s^2]
         self.current_s = self.csp["s"][best_index] # current longitudinal position [m]
         
-        self.debug_prev_index = 0
-        
     def update(self, ego_vehicle: carla.Actor, obs_predicted_path: np.array, rk) -> None:
         '''
         Params
@@ -453,7 +451,7 @@ class FrenetOptimalPlanner(object):
         x = self.csp["x"][best_index]
         y = self.csp["y"][best_index]
         # print("best index:", best_index)
-        self.debug_prev_index = best_index
+        # self.debug_prev_index = best_index
         # print("prev index:", self.debug_prev_index)
         # print(f"\r\n>>>>>>>>>>>>")
         # print(f"spline location:{x:.2f}, {y:.2f}")

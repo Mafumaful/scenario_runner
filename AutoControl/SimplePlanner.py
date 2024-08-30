@@ -49,7 +49,7 @@ if SCENARI_RUNNER_ROOT is not None:
 # frenet, spline dependencies
 # from AutoControl.utils.frenet import Frenet
 from AutoControl.utils.StanleyControl import StanleyController
-from AutoControl.utils.local_planner import simple_planner
+# from AutoControl.utils.local_planner import simple_planner
 from AutoControl.utils.local_planner import FrenetOptimalPlanner
 
 # turn the route into the spline
