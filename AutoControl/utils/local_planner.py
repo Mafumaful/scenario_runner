@@ -219,6 +219,7 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
             # Longitudinal motion planning (Velocity keeping)
             for tv in np.arange(TARGET_SPEED - D_T_S * N_S_SAMPLE,
                                 TARGET_SPEED + D_T_S * N_S_SAMPLE, D_T_S):
+            # for tv in np.arange(0, 10, 5):
                 tfp = copy.deepcopy(fp)
                 lon_qp = QuarticPolynomial(s0, c_speed, c_accel, tv, 0.0, Ti)
 
