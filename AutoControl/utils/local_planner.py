@@ -34,6 +34,44 @@ K_D = 1.0  # weight of square of d
 K_LAT = 1.0  # weight of lateral direction
 K_LON = 1.0  # weight of longitudinal direction
 
+def find_closest_index(csp_s, target_s):
+    """
+    Find the index in the list 'csp_s' that is closest to the 'target_s' value.
+    
+    Parameters
+    ----------
+    csp_s : list of float or numpy array
+        The sorted list of longitudinal positions (s values) on the path.
+    target_s : float
+        The target longitudinal position to find the closest index for.
+        
+    Returns
+    -------
+    index : int
+        The index of the element in 'csp_s' closest to 'target_s'.
+    """
+    # Ensure csp_s is a list or array, raise an error otherwise
+    if not isinstance(csp_s, (list, np.ndarray)):
+        raise TypeError(f"Expected csp_s to be a list or array, but got {type(csp_s)}")
+    
+    # Use binary search to find the insertion point for the target_s
+    index = bisect.bisect_left(csp_s, target_s)
+    
+    # Handle edge cases: target_s is smaller or larger than the range of csp_s
+    if index == 0:
+        return index
+    if index == len(csp_s):
+        return index - 1
+    
+    # Compare the two closest candidates and return the one closest to target_s
+    prev_value = csp_s[index - 1]
+    next_value = csp_s[index]
+    
+    if abs(next_value - target_s) < abs(prev_value - target_s):
+        return index
+    else:
+        return index - 1
+
 def search_index(x, x_list):
     """
     search data segment index
@@ -208,15 +246,19 @@ def calc_frenet_paths(c_speed, c_accel, c_d, c_d_d, c_d_dd, s0):
 def calc_global_paths(fplist, csp, index):
     # print_flag = True
     for fp in fplist:
-        index_temp = index
         # calc global positions
         for i in range(len(fp.s)):
-            index_temp = index_temp+i*1 if index_temp+i*1 < len(csp["s"]) else len(csp["s"])-1
-            ix, iy = csp["x"][index_temp], csp["y"][index_temp]
+            adjusted_s = fp.s[i]
+            
+            # use binary search to find the closest index in csp["s"]
+            csp_s = csp["s"]
+            index = find_closest_index(csp_s, adjusted_s)
+            
+            ix, iy = csp["x"][index], csp["y"][index]
+            iyaw = csp["yaw"][index]
             
             if ix is None:
                 break
-            iyaw = csp["yaw"][index] # csp is the cubic spline path
             di = fp.d[i]
             fx = ix + di * math.cos(iyaw + math.pi / 2.0)
             fy = iy + di * math.sin(iyaw + math.pi / 2.0)

@@ -287,4 +287,4 @@ def calc_spline_course(x, y, ds=0.1):
     # plt.axis("equal")
     # plt.show()
         
-    return rx, ry, ryaw, rk, sp
+    return rx, ry, ryaw, rk, s
